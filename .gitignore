@@ -2,6 +2,7 @@ nupkg/
 
 coverage/*
 addons/*
+.idea/*
 !coverage/.gdignore
 
 .godot/

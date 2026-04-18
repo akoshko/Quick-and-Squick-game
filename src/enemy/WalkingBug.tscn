@@ -1,0 +1,37 @@
+[gd_scene format=3 uid="uid://cw2qfr5mrpwas"]
+
+[ext_resource type="Script" uid="uid://bdke13g3pjqiw" path="res://src/enemy/WalkingBug.cs" id="1_bug"]
+[ext_resource type="Texture2D" uid="uid://ctw1gmebuhj57" path="res://src/enemy/visuals/slime_green.png" id="2_0qxxe"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]
+size = Vector2(14, 10)
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_hit"]
+size = Vector2(16, 12)
+
+[node name="WalkingBug" type="CharacterBody2D" unique_id=1673954390]
+script = ExtResource("1_bug")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1908682952]
+position = Vector2(0, -12)
+texture = ExtResource("2_0qxxe")
+hframes = 4
+vframes = 3
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=569127571]
+position = Vector2(0, -5)
+shape = SubResource("RectangleShape2D_body")
+
+[node name="EdgeCheck" type="RayCast2D" parent="." unique_id=1556544770]
+position = Vector2(10, 2)
+target_position = Vector2(0, 16)
+
+[node name="HitBox" type="Area2D" parent="." unique_id=1993881343]
+collision_layer = 0
+collision_mask = 4
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="HitBox" unique_id=919307190]
+position = Vector2(0, -6)
+shape = SubResource("RectangleShape2D_hit")
+
+[connection signal="body_entered" from="HitBox" to="." method="OnHitBoxBodyEntered"]

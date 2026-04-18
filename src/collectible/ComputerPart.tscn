@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://ciiqbv7vvgdee"]
+
+[ext_resource type="Script" path="res://src/collectible/ComputerPart.cs" id="1_part"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_part"]
+size = Vector2(12, 12)
+
+[node name="ComputerPart" type="Area2D"]
+script = ExtResource("1_part")
+collision_layer = 0
+collision_mask = 4
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_part")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[connection signal="body_entered" from="." to="." method="OnBodyEntered"]
