@@ -26,14 +26,15 @@ public partial class Game : Node2D
         _player1.Died += OnPlayerDied;
         _player2.Died += OnPlayerDied;
 
+        GetNode<Area2D>("Killzone").BodyEntered += OnKillzoneBodyEntered;
+
         GameManager.Instance.PartCollected += OnPartCollected;
         GameManager.Instance.AllPartsCollected += OnAllPartsCollected;
         GameManager.Instance.StateChanged += OnStateChanged;
         GameManager.Instance.Reset();
     }
 
-    // Connected from Killzone.body_entered signal in the scene
-    public void OnKillzoneBodyEntered(Node2D body)
+    private void OnKillzoneBodyEntered(Node2D body)
     {
         if (body == _player1)
         {
