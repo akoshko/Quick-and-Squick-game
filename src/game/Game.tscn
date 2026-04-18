@@ -202,7 +202,7 @@ unique_name_in_owner = true
 position = Vector2(111, 202)
 
 [node name="Killzone" type="Area2D" parent="." unique_id=1838305295]
-position = Vector2(0, 900)
+position = Vector2(2, 562)
 collision_layer = 0
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="Killzone" unique_id=462172416]
@@ -212,11 +212,35 @@ shape = SubResource("RectangleShape2D_kill")
 
 [node name="PartsLabel" type="Label" parent="HUD" unique_id=840703220]
 unique_name_in_owner = true
-offset_left = 11.0
+anchors_preset = 5
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -120.0
 offset_top = 12.0
-offset_right = 230.0
-offset_bottom = 56.66667
+offset_right = 120.0
+offset_bottom = 46.0
 text = "Детали: 0 / 15"
+horizontal_alignment = 1
+
+[node name="P1HpLabel" type="Label" parent="HUD" unique_id=100000001]
+unique_name_in_owner = true
+offset_left = 12.0
+offset_top = 12.0
+offset_right = 200.0
+offset_bottom = 46.0
+text = "P1: ♥♥♥"
+
+[node name="P2HpLabel" type="Label" parent="HUD" unique_id=100000002]
+unique_name_in_owner = true
+anchors_preset = 1
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -200.0
+offset_top = 12.0
+offset_right = -12.0
+offset_bottom = 46.0
+text = "P2: ♥♥♥"
+horizontal_alignment = 2
 
 [node name="PlayerCamera" type="Camera2D" parent="." unique_id=1685236841]
 script = ExtResource("4_cam")
@@ -229,5 +253,3 @@ position = Vector2(977, 223)
 
 [node name="MovingPlatform" parent="." unique_id=409647352 instance=ExtResource("7_yw8km")]
 position = Vector2(782, 164)
-
-[connection signal="body_entered" from="Killzone" to="." method="OnKillzoneBodyEntered"]

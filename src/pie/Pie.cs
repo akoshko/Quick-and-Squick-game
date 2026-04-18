@@ -21,15 +21,31 @@ public partial class Pie : Area2D
 
     private void UpdateHint()
     {
-        if (_hintLabel == null) return;
+        if (_hintLabel == null)
+        {
+            return;
+        }
+
         bool ready = GameManager.Instance.PartsCollected >= GameManager.PartsNeeded;
         _hintLabel.Visible = ready;
     }
 
     private void OnBodyEntered(Node2D body)
     {
-        if (body is not Player) return;
-        if (GameManager.Instance.PartsCollected < GameManager.PartsNeeded) return;
+        if (body is not Player)
+        {
+            return;
+        }
+
+        // TODO: Just show final score and finish the game
+        // When not all the Parts were collected, then show "You didn't collect all the details, pay attention nex time!"
+        // or if collected - then show "Congrats!" message
+        // Pass this text as a scene parameter
+        // if (GameManager.Instance.PartsCollected < GameManager.PartsNeeded)
+        // {
+        //     return;
+        // }
+
         GameManager.Instance.SetState(GameState.Victory);
     }
 }

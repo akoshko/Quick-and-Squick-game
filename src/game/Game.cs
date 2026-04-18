@@ -68,15 +68,18 @@ public partial class Game : Node2D
         _partsLabel.Text = "Все детали собраны! Найди пирог!";
     }
 
+    public override void _ExitTree()
+    {
+        GameManager.Instance.PartCollected -= OnPartCollected;
+        GameManager.Instance.AllPartsCollected -= OnAllPartsCollected;
+        GameManager.Instance.StateChanged -= OnStateChanged;
+    }
+
     private void OnStateChanged(GameState newState)
     {
         if (newState == GameState.Victory)
-        {
-            GetTree().ChangeSceneToFile("res://src/victory_screen/VictoryScreen.tscn");
-        }
+            Callable.From(() => GetTree().ChangeSceneToFile("res://src/victory_screen/VictoryScreen.tscn")).CallDeferred();
         else if (newState == GameState.GameOver)
-        {
-            GetTree().ChangeSceneToFile("res://src/defeat_menu/DefeatMenu.tscn");
-        }
+            Callable.From(() => GetTree().ChangeSceneToFile("res://src/defeat_menu/DefeatMenu.tscn")).CallDeferred();
     }
 }

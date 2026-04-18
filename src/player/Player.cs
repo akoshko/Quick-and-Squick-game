@@ -1,4 +1,5 @@
 using Godot;
+using QuickAndSquick.player_camera;
 
 namespace QuickAndSquick.player;
 
@@ -85,7 +86,7 @@ public partial class Player : CharacterBody2D
 
         Velocity = velocity;
         MoveAndSlide();
-
+        ClampToViewport();
         PlayAnimation(direction);
     }
 
@@ -136,6 +137,21 @@ public partial class Player : CharacterBody2D
         }
     }
 
+    private void ClampToViewport()
+    {
+        var rect = PlayerCamera.VisibleRect;
+        if (rect == default) return;
+
+        var pos = GlobalPosition;
+        float margin = 8f;
+        float clampedX = Mathf.Clamp(pos.X, rect.Position.X + margin, rect.End.X - margin);
+        if (!Mathf.IsEqualApprox(pos.X, clampedX))
+        {
+            GlobalPosition = new Vector2(clampedX, pos.Y);
+            Velocity = new Vector2(0, Velocity.Y);
+        }
+    }
+    
     public void Respawn(Vector2 spawnPosition)
     {
         GlobalPosition = spawnPosition;
