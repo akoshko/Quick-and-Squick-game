@@ -17,6 +17,11 @@ public partial class Pie : Area2D
         UpdateHint();
     }
 
+    public override void _ExitTree()
+    {
+        GameManager.Instance.PartCollected -= OnPartCollected;
+    }
+
     private void OnPartCollected(int total) => UpdateHint();
 
     private void UpdateHint()
