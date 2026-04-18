@@ -184,11 +184,12 @@ tile_set = SubResource("TileSet_17plf")
 
 [node name="Player1" parent="." unique_id=931995245 instance=ExtResource("2_player")]
 unique_name_in_owner = true
-position = Vector2(200, 200)
+position = Vector2(198, 198.99998)
 
 [node name="Player2" parent="." unique_id=1258764617 instance=ExtResource("2_player")]
 unique_name_in_owner = true
-position = Vector2(111, 203)
+position = Vector2(112, 200.99998)
+PlayerIndex = 2
 
 [node name="SpawnPoint1" type="Marker2D" parent="." unique_id=1893753333]
 unique_name_in_owner = true
@@ -209,14 +210,16 @@ shape = SubResource("RectangleShape2D_kill")
 
 [node name="PartsLabel" type="Label" parent="HUD" unique_id=840703220]
 unique_name_in_owner = true
-offset_left = 20.0
-offset_top = 20.0
+offset_left = 11.0
+offset_top = 12.0
+offset_right = 230.0
+offset_bottom = 56.66667
 text = "Детали: 0 / 15"
 
 [node name="PlayerCamera" type="Camera2D" parent="." unique_id=1685236841]
 script = ExtResource("4_cam")
 
 [node name="WalkingBug" parent="." unique_id=1882833905 instance=ExtResource("5_oijqn")]
-position = Vector2(308, 228)
+position = Vector2(315, 239)
 
 [connection signal="body_entered" from="Killzone" to="." method="OnKillzoneBodyEntered"]

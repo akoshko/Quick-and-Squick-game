@@ -1,0 +1,38 @@
+[gd_scene format=3 uid="uid://mainmenu_qs1"]
+
+[ext_resource type="Script" path="res://src/main_menu/MainMenu.cs" id="1_menu"]
+
+[node name="MainMenu" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_menu")
+
+[node name="BG" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.08, 0.08, 0.14, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+theme_override_constants/separation = 30
+
+[node name="Title" type="Label" parent="Center/VBox"]
+text = "Quick and Squick"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 72
+
+[node name="Tagline" type="Label" parent="Center/VBox"]
+text = "Найди все детали и спаси вечеринку!"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 22
+
+[node name="Spacer" type="Control" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 60)
+
+[node name="StartHint" type="Label" parent="Center/VBox"]
+text = "Нажми любую кнопку для начала"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 26

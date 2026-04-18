@@ -15,6 +15,7 @@ public partial class GameManager : Node
 
     [Signal] public delegate void StateChangedEventHandler(GameState newState);
     [Signal] public delegate void PartCollectedEventHandler(int total);
+    [Signal] public delegate void AllPartsCollectedEventHandler();
 
     public override void _Ready() => Instance = this;
 
@@ -29,7 +30,7 @@ public partial class GameManager : Node
         PartsCollected++;
         EmitSignal(SignalName.PartCollected, PartsCollected);
         if (PartsCollected >= PartsNeeded)
-            SetState(GameState.Victory);
+            EmitSignal(SignalName.AllPartsCollected);
     }
 
     public void Reset()

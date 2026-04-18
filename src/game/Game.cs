@@ -27,6 +27,7 @@ public partial class Game : Node2D
         _player2.Died += OnPlayerDied;
 
         GameManager.Instance.PartCollected += OnPartCollected;
+        GameManager.Instance.AllPartsCollected += OnAllPartsCollected;
         GameManager.Instance.StateChanged += OnStateChanged;
         GameManager.Instance.Reset();
     }
@@ -60,6 +61,11 @@ public partial class Game : Node2D
     private void OnPartCollected(int total)
     {
         _partsLabel.Text = $"Детали: {total} / {GameManager.PartsNeeded}";
+    }
+
+    private void OnAllPartsCollected()
+    {
+        _partsLabel.Text = "Все детали собраны! Найди пирог!";
     }
 
     private void OnStateChanged(GameState newState)

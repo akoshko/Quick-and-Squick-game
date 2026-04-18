@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://b3in8h5h2xtui"
-path="res://.godot/imported/Warrior_Blue.png-27c93d955e87a3aed883f946cc9402ec.ctex"
+uid="uid://uihnjt6uvedu"
+path="res://.godot/imported/syrnik_walk-Sheet.png-7b324003b6ec8fee01fdca3dc152cc88.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://src/player/visuals/Warrior_Blue.png"
-dest_files=["res://.godot/imported/Warrior_Blue.png-27c93d955e87a3aed883f946cc9402ec.ctex"]
+source_file="res://src/player/visuals/syrnik_walk-Sheet.png"
+dest_files=["res://.godot/imported/syrnik_walk-Sheet.png-7b324003b6ec8fee01fdca3dc152cc88.ctex"]
 
 [params]
 

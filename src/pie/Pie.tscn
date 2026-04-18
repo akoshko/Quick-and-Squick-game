@@ -1,0 +1,27 @@
+[gd_scene format=3 uid="uid://pie_qs0001"]
+
+[ext_resource type="Script" path="res://src/pie/Pie.cs" id="1_pie"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_pie"]
+size = Vector2(24, 24)
+
+[node name="Pie" type="Area2D"]
+script = ExtResource("1_pie")
+collision_layer = 0
+collision_mask = 4
+
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, -12)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_pie")
+
+[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+
+[node name="Hint" type="Label" parent="."]
+position = Vector2(-60, -40)
+visible = false
+text = "Забери пирог!"
+theme_override_font_sizes/font_size = 12
+
+[connection signal="body_entered" from="." to="." method="OnBodyEntered"]

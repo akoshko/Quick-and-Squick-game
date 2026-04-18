@@ -1,0 +1,35 @@
+[gd_scene format=3 uid="uid://defeat_qs01"]
+
+[ext_resource type="Script" path="res://src/defeat_menu/DefeatMenu.cs" id="1_defeat"]
+
+[node name="DefeatMenu" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_defeat")
+
+[node name="BG" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.12, 0.04, 0.04, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+theme_override_constants/separation = 30
+
+[node name="GameOver" type="Label" parent="Center/VBox"]
+text = "Игра окончена"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 72
+
+[node name="Subtitle" type="Label" parent="Center/VBox"]
+text = "Жуки-баги победили..."
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 26
+
+[node name="Hint" type="Label" parent="Center/VBox"]
+text = "Нажми любую кнопку для повтора"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 22

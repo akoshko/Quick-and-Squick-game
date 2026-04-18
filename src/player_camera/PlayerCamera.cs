@@ -7,7 +7,7 @@ public partial class PlayerCamera : Camera2D
 {
     [Export] public float SmoothSpeed { get; set; } = 6f;
     // Zoom > 1 = zoom in (things appear bigger). 3 = tiles at 16px look like 48px.
-    [Export] public float ZoomLevel { get; set; } = 3f;
+    [Export] public float ZoomLevel { get; set; } = 6f;
 
     private Player _player1 = default!;
     private Player _player2 = default!;

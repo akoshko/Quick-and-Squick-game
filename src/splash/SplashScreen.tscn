@@ -1,0 +1,56 @@
+[gd_scene format=3 uid="uid://splash_qs01"]
+
+[ext_resource type="Script" path="res://src/splash/SplashScreen.cs" id="1_splash"]
+
+[node name="SplashScreen" type="Control"]
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("1_splash")
+
+[node name="BG" type="ColorRect" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.06, 0.06, 0.1, 1)
+
+[node name="Center" type="CenterContainer" parent="."]
+anchor_right = 1.0
+anchor_bottom = 1.0
+
+[node name="VBox" type="VBoxContainer" parent="Center"]
+theme_override_constants/separation = 20
+
+[node name="Title" type="Label" parent="Center/VBox"]
+text = "Quick and Squick"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 64
+
+[node name="Subtitle" type="Label" parent="Center/VBox"]
+text = "Сырник и Писклик против жуков-багов"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 24
+
+[node name="Spacer" type="Control" parent="Center/VBox"]
+custom_minimum_size = Vector2(0, 40)
+
+[node name="Team" type="Label" parent="Center/VBox"]
+text = "Артём Кошко & Даша Генце"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 20
+
+[node name="Event" type="Label" parent="Center/VBox"]
+text = "TulaHack 2025"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
+
+[node name="Hint" type="Label" parent="."]
+anchor_left = 0.5
+anchor_top = 1.0
+anchor_right = 0.5
+anchor_bottom = 1.0
+offset_left = -200.0
+offset_top = -60.0
+offset_right = 200.0
+offset_bottom = -20.0
+text = "Нажми любую кнопку"
+horizontal_alignment = 1
+theme_override_font_sizes/font_size = 18
