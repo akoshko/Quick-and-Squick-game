@@ -1,0 +1,20 @@
+[gd_scene format=3 uid="uid://cxvtmsb01kdme"]
+
+[ext_resource type="Script" uid="uid://ckv724rkojs2x" path="res://src/platform/MovingPlatform.cs" id="1_platform"]
+[ext_resource type="Texture2D" uid="uid://3g2n2bq5s7jv" path="res://src/game/visuals/world_tileset.png" id="2_oc3v1"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]
+size = Vector2(64, 8)
+
+[node name="MovingPlatform" type="AnimatableBody2D" unique_id=28168619]
+script = ExtResource("1_platform")
+
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=785232525]
+scale = Vector2(3.875, 1)
+texture = ExtResource("2_oc3v1")
+region_enabled = true
+region_rect = Rect2(160, 18, 16, 7)
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1551196753]
+shape = SubResource("RectangleShape2D_platform")
+one_way_collision = true

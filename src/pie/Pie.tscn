@@ -1,26 +1,32 @@
-[gd_scene format=3 uid="uid://pie_qs0001"]
+[gd_scene format=3 uid="uid://buco4yywcp88b"]
 
-[ext_resource type="Script" path="res://src/pie/Pie.cs" id="1_pie"]
+[ext_resource type="Script" uid="uid://bp8baa0tlrfj0" path="res://src/pie/Pie.cs" id="1_pie"]
+[ext_resource type="Texture2D" uid="uid://3g2n2bq5s7jv" path="res://src/game/visuals/world_tileset.png" id="2_ql5w7"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pie"]
-size = Vector2(24, 24)
+size = Vector2(16, 16)
 
-[node name="Pie" type="Area2D"]
-script = ExtResource("1_pie")
+[node name="Pie" type="Area2D" unique_id=1208567110]
 collision_layer = 0
-collision_mask = 1
+script = ExtResource("1_pie")
 
-[node name="Sprite2D" type="Sprite2D" parent="."]
-position = Vector2(0, -12)
+[node name="Sprite2D" type="Sprite2D" parent="." unique_id=1050368839]
+position = Vector2(0, -8)
+texture = ExtResource("2_ql5w7")
+region_enabled = true
+region_rect = Rect2(32, 49, 16, 15)
 
-[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+[node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1469728397]
+position = Vector2(0, -8)
 shape = SubResource("RectangleShape2D_pie")
 
-[node name="AnimationPlayer" type="AnimationPlayer" parent="."]
+[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=2100840821]
 
-[node name="Hint" type="Label" parent="."]
-position = Vector2(-60, -40)
+[node name="Hint" type="Label" parent="." unique_id=955453614]
 visible = false
-text = "Забери пирог!"
+offset_left = -60.0
+offset_top = -40.0
+offset_right = -60.0
+offset_bottom = -40.0
 theme_override_font_sizes/font_size = 12
-
+text = "Забери пирог!"
