@@ -23,6 +23,10 @@ public partial class Player : CharacterBody2D
     private CollisionShape2D _collisionShape = default!;
     private string _currentAnim = "";
     private bool _isCrouching;
+    private float _iframeTimer = 0f;
+    private const float IframeDuration = 1.2f;
+    private const float KnockbackX = 220f;
+    private const float KnockbackY = -320f;
 
     public override void _Ready()
     {
@@ -86,6 +90,7 @@ public partial class Player : CharacterBody2D
         MoveAndSlide();
         ClampToViewport();
         PlayAnimation(direction);
+        TickIframes((float)delta);
     }
 
     private void PlayAnimation(float direction)
@@ -125,10 +130,22 @@ public partial class Player : CharacterBody2D
         }
     }
 
-    public void TakeDamage(int amount = 1)
+    private void TickIframes(float delta)
     {
-        if (IsDead) return;
+        if (_iframeTimer <= 0f) return;
+        _iframeTimer -= delta;
+        _sprite.Visible = (int)(_iframeTimer / 0.1f) % 2 == 0;
+        if (_iframeTimer <= 0f)
+            _sprite.Visible = true;
+    }
+
+    public void TakeDamage(int amount = 1, Vector2 knockback = default)
+    {
+        if (IsDead || _iframeTimer > 0f) return;
         Hp = Mathf.Max(0, Hp - amount);
+        _iframeTimer = IframeDuration;
+        if (knockback != Vector2.Zero)
+            Velocity = knockback;
         EmitSignal(SignalName.HpChanged, PlayerIndex, Hp);
         if (Hp <= 0)
         {

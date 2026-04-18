@@ -54,9 +54,9 @@ public partial class WalkingBug : CharacterBody2D
 
     private void OnHitBoxBodyEntered(Node2D body)
     {
-        if (body is Player player)
-        {
-            player.TakeDamage(Damage);
-        }
+        if (body is not Player player) return;
+        float side = Mathf.Sign(player.GlobalPosition.X - GlobalPosition.X);
+        var knockback = new Vector2(side * 220f, -320f);
+        player.TakeDamage(Damage, knockback);
     }
 }
