@@ -9,6 +9,9 @@ public partial class Pie : Area2D
 
     public override void _Ready()
     {
+        CollisionMask = 1; // Player is on physics layer 1
+        BodyEntered += OnBodyEntered;
+
         _hintLabel = GetNodeOrNull<Label>("Hint");
         GameManager.Instance.PartCollected += OnPartCollected;
         UpdateHint();
@@ -23,7 +26,7 @@ public partial class Pie : Area2D
         _hintLabel.Visible = ready;
     }
 
-    public void OnBodyEntered(Node2D body)
+    private void OnBodyEntered(Node2D body)
     {
         if (body is not Player) return;
         if (GameManager.Instance.PartsCollected < GameManager.PartsNeeded) return;

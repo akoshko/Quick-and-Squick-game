@@ -18,6 +18,10 @@ public partial class WalkingBug : CharacterBody2D
         _gravity = ProjectSettings.GetSetting("physics/2d/default_gravity").AsSingle();
         _sprite = GetNode<Sprite2D>("Sprite2D");
         _edgeCheck = GetNode<RayCast2D>("EdgeCheck");
+
+        var hitBox = GetNode<Area2D>("HitBox");
+        hitBox.CollisionMask = 1; // Player is on physics layer 1
+        hitBox.BodyEntered += OnHitBoxBodyEntered;
     }
 
     public override void _PhysicsProcess(double delta)
@@ -48,8 +52,7 @@ public partial class WalkingBug : CharacterBody2D
         _edgeCheck.Position = new Vector2(Mathf.Abs(_edgeCheck.Position.X) * _direction, _edgeCheck.Position.Y);
     }
 
-    // Connected from HitBox.body_entered in scene
-    public void OnHitBoxBodyEntered(Node2D body)
+    private void OnHitBoxBodyEntered(Node2D body)
     {
         if (body is Player player)
         {

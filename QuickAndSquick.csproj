@@ -60,17 +60,4 @@
     <EmbeddedResource Remove="test/**/*" />
   </ItemGroup>
 
-  <ItemGroup>
-    <Folder Include="src\defeat_menu\" />
-    <Folder Include="src\defeat_plane\" />
-    <Folder Include="src\enemy\" />
-    <Folder Include="src\game\" />
-    <Folder Include="src\map\" />
-    <Folder Include="src\menu\" />
-    <Folder Include="src\player_camera\" />
-    <Folder Include="src\player\" />
-    <Folder Include="src\utils\" />
-    <Folder Include="src\victory_menu\" />
-  </ItemGroup>
-  
 </Project>

@@ -7,6 +7,9 @@ public partial class ComputerPart : Area2D
 {
     public override void _Ready()
     {
+        CollisionMask = 1; // Player is on physics layer 1
+        BodyEntered += OnBodyEntered;
+
         var anim = GetNodeOrNull<AnimationPlayer>("AnimationPlayer");
         if (anim?.HasAnimation("float") == true)
         {
@@ -14,8 +17,7 @@ public partial class ComputerPart : Area2D
         }
     }
 
-    // Connected from body_entered in scene
-    public void OnBodyEntered(Node2D body)
+    private void OnBodyEntered(Node2D body)
     {
         if (body is not Player) return;
         GameManager.Instance.CollectPart();
