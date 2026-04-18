@@ -8,6 +8,17 @@ public partial class VictoryScreen : Control
     private bool _canExit = false;
     private bool _gone = false;
 
+    public override void _Ready()
+    {
+        var scoreLabel = GetNode<Label>("Center/VBox/ScoreMessage");
+        int collected = GameManager.Instance.PartsCollected;
+        int needed = GameManager.PartsNeeded;
+
+        scoreLabel.Text = collected >= needed
+            ? "Congrats! You collected all the parts!"
+            : $"You didn't collect all the details, pay attention next time!\n({collected} / {needed})";
+    }
+
     public override void _Process(double delta)
     {
         _timer += (float)delta;

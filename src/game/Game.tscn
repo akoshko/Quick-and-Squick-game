@@ -7,6 +7,7 @@
 [ext_resource type="PackedScene" uid="uid://cw2qfr5mrpwas" path="res://src/enemy/WalkingBug.tscn" id="5_oijqn"]
 [ext_resource type="PackedScene" uid="uid://buco4yywcp88b" path="res://src/pie/Pie.tscn" id="6_dxb18"]
 [ext_resource type="PackedScene" uid="uid://cxvtmsb01kdme" path="res://src/platform/MovingPlatform.tscn" id="7_yw8km"]
+[ext_resource type="PackedScene" uid="uid://ciiqbv7vvgdee" path="res://src/collectible/ComputerPart.tscn" id="8_bwaxr"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_kxp7u"]
 texture = ExtResource("2_n6osq")
@@ -186,20 +187,20 @@ tile_set = SubResource("TileSet_17plf")
 
 [node name="Player1" parent="." unique_id=931995245 instance=ExtResource("2_player")]
 unique_name_in_owner = true
-position = Vector2(198, 198.99998)
+position = Vector2(197, 237.99998)
 
 [node name="Player2" parent="." unique_id=1258764617 instance=ExtResource("2_player")]
 unique_name_in_owner = true
-position = Vector2(112, 200.99998)
+position = Vector2(114, 237.99998)
 PlayerIndex = 2
 
 [node name="SpawnPoint1" type="Marker2D" parent="." unique_id=1893753333]
 unique_name_in_owner = true
-position = Vector2(200, 200)
+position = Vector2(199, 239)
 
 [node name="SpawnPoint2" type="Marker2D" parent="." unique_id=1570933653]
 unique_name_in_owner = true
-position = Vector2(111, 202)
+position = Vector2(113, 239)
 
 [node name="Killzone" type="Area2D" parent="." unique_id=1838305295]
 position = Vector2(2, 562)
@@ -253,3 +254,12 @@ position = Vector2(977, 223)
 
 [node name="MovingPlatform" parent="." unique_id=409647352 instance=ExtResource("7_yw8km")]
 position = Vector2(782, 164)
+
+[node name="ComputerPart" parent="." unique_id=733427409 instance=ExtResource("8_bwaxr")]
+position = Vector2(264, 196)
+
+[node name="ComputerPart2" parent="." unique_id=1664495867 instance=ExtResource("8_bwaxr")]
+position = Vector2(448, 194)
+
+[node name="ComputerPart3" parent="." unique_id=993819545 instance=ExtResource("8_bwaxr")]
+position = Vector2(864, 146)

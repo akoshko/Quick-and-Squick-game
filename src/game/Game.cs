@@ -1,3 +1,4 @@
+using System;
 using Godot;
 using QuickAndSquick.player;
 
@@ -10,6 +11,8 @@ public partial class Game : Node2D
     private Vector2 _spawn1;
     private Vector2 _spawn2;
     private Label _partsLabel = default!;
+    private Label _p1HpLabel = default!;
+    private Label _p2HpLabel = default!;
 
     public override void _Ready()
     {
@@ -20,6 +23,8 @@ public partial class Game : Node2D
         _spawn2 = GetNode<Marker2D>("%SpawnPoint2").GlobalPosition;
 
         _partsLabel = GetNode<Label>("%PartsLabel");
+        _p1HpLabel = GetNode<Label>("%P1HpLabel");
+        _p2HpLabel = GetNode<Label>("%P2HpLabel");
 
         _player1.HpChanged += OnHpChanged;
         _player2.HpChanged += OnHpChanged;
@@ -32,6 +37,9 @@ public partial class Game : Node2D
         GameManager.Instance.AllPartsCollected += OnAllPartsCollected;
         GameManager.Instance.StateChanged += OnStateChanged;
         GameManager.Instance.Reset();
+
+        RefreshHpLabel(_player1);
+        RefreshHpLabel(_player2);
     }
 
     private void OnKillzoneBodyEntered(Node2D body)
@@ -48,15 +56,20 @@ public partial class Game : Node2D
 
     private void OnHpChanged(int playerIndex, int newHp)
     {
-        // TODO: update HP display when Dasha has HP bar sprites
+        var player = playerIndex == 1 ? _player1 : _player2;
+        RefreshHpLabel(player);
+    }
+
+    private void RefreshHpLabel(Player player)
+    {
+        string hearts = new string('♥', player.Hp) + new string('♡', player.MaxHp - player.Hp);
+        var label = player.PlayerIndex == 1 ? _p1HpLabel : _p2HpLabel;
+        label.Text = $"P{player.PlayerIndex}: {hearts}";
     }
 
     private void OnPlayerDied(int playerIndex)
     {
-        if (_player1.Hp <= 0 && _player2.Hp <= 0)
-        {
-            GameManager.Instance.SetState(GameState.GameOver);
-        }
+        GameManager.Instance.SetState(GameState.GameOver);
     }
 
     private void OnPartCollected(int total)
@@ -78,9 +91,22 @@ public partial class Game : Node2D
 
     private void OnStateChanged(GameState newState)
     {
-        if (newState == GameState.Victory)
-            Callable.From(() => GetTree().ChangeSceneToFile("res://src/victory_screen/VictoryScreen.tscn")).CallDeferred();
-        else if (newState == GameState.GameOver)
-            Callable.From(() => GetTree().ChangeSceneToFile("res://src/defeat_menu/DefeatMenu.tscn")).CallDeferred();
+        switch (newState)
+        {
+            case GameState.Victory:
+                Callable.From(() => GetTree().ChangeSceneToFile("res://src/victory_screen/VictoryScreen.tscn")).CallDeferred();
+                break;
+            case GameState.GameOver:
+                Callable.From(() => GetTree().ChangeSceneToFile("res://src/defeat_menu/DefeatMenu.tscn")).CallDeferred();
+                break;
+            case GameState.Menu:
+                break;
+            case GameState.Playing:
+                break;
+            case GameState.Paused:
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(newState), newState, null);
+        }
     }
 }

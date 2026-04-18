@@ -26,8 +26,14 @@ theme_override_font_sizes/font_size = 72
 
 [node name="PieSprite" type="Sprite2D" parent="Center/VBox"]
 
+[node name="ScoreMessage" type="Label" parent="Center/VBox"]
+text = ""
+horizontal_alignment = 1
+autowrap_mode = 3
+theme_override_font_sizes/font_size = 26
+
 [node name="Spacer" type="Control" parent="Center/VBox"]
-custom_minimum_size = Vector2(0, 30)
+custom_minimum_size = Vector2(0, 20)
 
 [node name="Credits" type="Label" parent="Center/VBox"]
 text = "— Программирование: Артём Кошко

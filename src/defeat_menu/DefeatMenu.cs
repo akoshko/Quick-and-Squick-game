@@ -12,13 +12,23 @@ public partial class DefeatMenu : Control
     {
         _timer += (float)delta;
         if (_timer >= 1.5f)
+        {
             _canRestart = true;
+        }
     }
 
     public override void _UnhandledInput(InputEvent @event)
     {
-        if (!_canRestart || _gone) return;
-        if (!@event.IsPressed()) return;
+        if (!_canRestart || _gone)
+        {
+            return;
+        }
+
+        if (!@event.IsPressed())
+        {
+            return;
+        }
+
         if (@event is InputEventKey or InputEventJoypadButton)
         {
             _gone = true;

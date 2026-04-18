@@ -12,16 +12,15 @@ public partial class Player : CharacterBody2D
     [Export] public int MaxHp { get; set; } = 3;
 
     public int Hp { get; private set; }
+    public bool IsDead => Hp <= 0;
 
-    [Signal]
-    public delegate void DiedEventHandler(int playerIndex);
-
-    [Signal]
-    public delegate void HpChangedEventHandler(int playerIndex, int newHp);
+    [Signal] public delegate void DiedEventHandler(int playerIndex);
+    [Signal] public delegate void HpChangedEventHandler(int playerIndex, int newHp);
 
     private float _gravity;
     private AnimationPlayer _animPlayer = default!;
     private Sprite2D _sprite = default!;
+    private CollisionShape2D _collisionShape = default!;
     private string _currentAnim = "";
     private bool _isCrouching;
 
@@ -31,14 +30,13 @@ public partial class Player : CharacterBody2D
         _gravity = ProjectSettings.GetSetting("physics/2d/default_gravity").AsSingle();
         _animPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
         _sprite = GetNode<Sprite2D>("Sprite2D");
+        _collisionShape = GetNode<CollisionShape2D>("CollisionShape2D");
     }
 
     public override void _PhysicsProcess(double delta)
     {
-        if (GameManager.Instance?.State == GameState.Paused)
-        {
-            return;
-        }
+        if (IsDead) return;
+        if (GameManager.Instance?.State == GameState.Paused) return;
 
         var velocity = Velocity;
 
@@ -129,10 +127,14 @@ public partial class Player : CharacterBody2D
 
     public void TakeDamage(int amount = 1)
     {
+        if (IsDead) return;
         Hp = Mathf.Max(0, Hp - amount);
         EmitSignal(SignalName.HpChanged, PlayerIndex, Hp);
         if (Hp <= 0)
         {
+            Visible = false;
+            _collisionShape.SetDeferred(CollisionShape2D.PropertyName.Disabled, true);
+            SetPhysicsProcess(false);
             EmitSignal(SignalName.Died, PlayerIndex);
         }
     }
