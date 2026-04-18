@@ -1,4 +1,4 @@
-# OctaveOdyssey
+# Quick and Squick
 
 [![Chickensoft Badge][chickensoft-badge]][chickensoft-website] [![Discord][discord-badge]][discord] [![Read the docs][read-the-docs-badge]][docs] ![line coverage][line-coverage] ![branch coverage][branch-coverage]
 
@@ -16,7 +16,7 @@ This template allows you to easily create a C# game for Godot 4. Microsoft's `do
 
 ```sh
 # Install this template
-dotnet new install OctaveOdyssey
+dotnet new install QuickAndSquick
 
 # Generate a new project based on this template
 dotnet new chickengame --name "MyGameName" --param:author "My Name"
@@ -155,7 +155,7 @@ You can configure which simulated graphics environments (`vulkan` and/or `opengl
 
 Currently, tests can only be run from the `ubuntu` runners. If you know how to make the workflow install mesa and a virtual window manager on macOS and Windows, we'd love to hear from you!
 
-Tests are executed by running the Godot test project in `OctaveOdyssey` from the command line and passing in the relevant arguments to Godot so that [GoDotTest] can discover and run tests.
+Tests are executed by running the Godot test project in `QuickAndSquick` from the command line and passing in the relevant arguments to Godot so that [GoDotTest] can discover and run tests.
 
 ### 🧑‍🏫 Spellcheck
 
@@ -169,7 +169,7 @@ You can also words to the local `cspell.json` file from VSCode by hovering over 
 
 ### 🗂 Version Change
 
-The included workflow in [`.github/workflows/version_change.yaml`](.github/workflows/version_change.yaml) can be manually dispatched to open a pull request that replaces the version number in `OctaveOdyssey.csproj` with the version you specify in the workflow's inputs.
+The included workflow in [`.github/workflows/version_change.yaml`](.github/workflows/version_change.yaml) can be manually dispatched to open a pull request that replaces the version number in `QuickAndSquick.csproj` with the version you specify in the workflow's inputs.
 
 ![Version Change Workflow](docs/version_change.png)
 
