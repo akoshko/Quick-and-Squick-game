@@ -1,23 +1,23 @@
 [gd_scene format=3 uid="uid://buco4yywcp88b"]
 
 [ext_resource type="Script" uid="uid://bp8baa0tlrfj0" path="res://src/pie/Pie.cs" id="1_pie"]
-[ext_resource type="Texture2D" uid="uid://3g2n2bq5s7jv" path="res://src/game/visuals/world_tileset.png" id="2_ql5w7"]
+[ext_resource type="Texture2D" uid="uid://cja5mnodhtpjl" path="res://src/game/visuals/tilemap-Sheet.png" id="2_ql5w7"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pie"]
-size = Vector2(16, 16)
+size = Vector2(49, 25)
 
 [node name="Pie" type="Area2D" unique_id=1208567110]
 collision_layer = 0
 script = ExtResource("1_pie")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1050368839]
-position = Vector2(0, -8)
+position = Vector2(0, -13)
 texture = ExtResource("2_ql5w7")
 region_enabled = true
-region_rect = Rect2(32, 49, 16, 15)
+region_rect = Rect2(0, 100, 49, 24)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1469728397]
-position = Vector2(0, -8)
+position = Vector2(0.5, -12.5)
 shape = SubResource("RectangleShape2D_pie")
 
 [node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=2100840821]

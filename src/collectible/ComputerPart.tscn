@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://ciiqbv7vvgdee"]
 
 [ext_resource type="Script" uid="uid://cuhks8jg4xtbb" path="res://src/collectible/ComputerPart.cs" id="1_part"]
-[ext_resource type="Texture2D" uid="uid://3g2n2bq5s7jv" path="res://src/game/visuals/world_tileset.png" id="2_ov0yt"]
+[ext_resource type="Texture2D" uid="uid://cja5mnodhtpjl" path="res://src/game/visuals/tilemap-Sheet.png" id="2_ov0yt"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_part"]
 size = Vector2(16, 15)
@@ -13,7 +13,7 @@ script = ExtResource("1_part")
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1680740767]
 texture = ExtResource("2_ov0yt")
 region_enabled = true
-region_rect = Rect2(64, 128, 16, 16)
+region_rect = Rect2(78, 78, 19, 19)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=1575756489]
 position = Vector2(0, 0.5)
