@@ -1,56 +1,72 @@
-[gd_scene format=3 uid="uid://splash_qs01"]
+[gd_scene format=3 uid="uid://colig1s07gne8"]
 
-[ext_resource type="Script" path="res://src/splash/SplashScreen.cs" id="1_splash"]
+[ext_resource type="Script" uid="uid://dlwhad6j51rry" path="res://src/splash/SplashScreen.cs" id="1_splash"]
 
-[node name="SplashScreen" type="Control"]
+[node name="SplashScreen" type="Control" unique_id=1839937413]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
 script = ExtResource("1_splash")
 
-[node name="BG" type="ColorRect" parent="."]
+[node name="BG" type="ColorRect" parent="." unique_id=91772336]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.06, 0.06, 0.1, 1)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="." unique_id=926280986]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="VBox" type="VBoxContainer" parent="Center"]
+[node name="VBox" type="VBoxContainer" parent="Center" unique_id=1987784615]
+layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="Title" type="Label" parent="Center/VBox"]
-text = "Quick and Squick"
+[node name="Title" type="Label" parent="Center/VBox" unique_id=870883702]
+layout_mode = 2
+theme_override_font_sizes/font_size = 96
+text = "Quick and Squeak"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 64
 
-[node name="Subtitle" type="Label" parent="Center/VBox"]
+[node name="Subtitle" type="Label" parent="Center/VBox" unique_id=835225810]
+layout_mode = 2
+theme_override_font_sizes/font_size = 36
 text = "Сырник и Писклик против жуков-багов"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 24
 
-[node name="Spacer" type="Control" parent="Center/VBox"]
+[node name="Spacer" type="Control" parent="Center/VBox" unique_id=1920114203]
 custom_minimum_size = Vector2(0, 40)
+layout_mode = 2
 
-[node name="Team" type="Label" parent="Center/VBox"]
-text = "Артём Кошко & Даша Генце"
+[node name="Team" type="Label" parent="Center/VBox" unique_id=975277066]
+layout_mode = 2
+theme_override_font_sizes/font_size = 30
+text = "Артём Кошко & Даша Гензе"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 20
 
-[node name="Event" type="Label" parent="Center/VBox"]
-text = "TulaHack 2025"
+[node name="Event" type="Label" parent="Center/VBox" unique_id=681080613]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "TulaHack 2026"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18
 
-[node name="Hint" type="Label" parent="."]
+[node name="Hint" type="Label" parent="." unique_id=1560071046]
+layout_mode = 1
+anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -200.0
+offset_left = -300.0
 offset_top = -60.0
-offset_right = 200.0
+offset_right = 300.0
 offset_bottom = -20.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 48
 text = "Нажми любую кнопку"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18

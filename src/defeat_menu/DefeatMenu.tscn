@@ -1,35 +1,43 @@
-[gd_scene format=3 uid="uid://defeat_qs01"]
+[gd_scene format=3 uid="uid://wok47rb1oi66"]
 
-[ext_resource type="Script" path="res://src/defeat_menu/DefeatMenu.cs" id="1_defeat"]
+[ext_resource type="Script" uid="uid://cub2adeai34eg" path="res://src/defeat_menu/DefeatMenu.cs" id="1_defeat"]
 
-[node name="DefeatMenu" type="Control"]
+[node name="DefeatMenu" type="Control" unique_id=1352818574]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_defeat")
 
-[node name="BG" type="ColorRect" parent="."]
+[node name="BG" type="ColorRect" parent="." unique_id=1334039968]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.12, 0.04, 0.04, 1)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="." unique_id=93474545]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="VBox" type="VBoxContainer" parent="Center"]
+[node name="VBox" type="VBoxContainer" parent="Center" unique_id=1867777131]
+layout_mode = 2
 theme_override_constants/separation = 30
 
-[node name="GameOver" type="Label" parent="Center/VBox"]
+[node name="GameOver" type="Label" parent="Center/VBox" unique_id=1905161638]
+layout_mode = 2
+theme_override_font_sizes/font_size = 108
 text = "Игра окончена"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 72
 
-[node name="Subtitle" type="Label" parent="Center/VBox"]
+[node name="Subtitle" type="Label" parent="Center/VBox" unique_id=1929072439]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
 text = "Жуки-баги победили..."
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 26
 
-[node name="Hint" type="Label" parent="Center/VBox"]
+[node name="Hint" type="Label" parent="Center/VBox" unique_id=1761397142]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
 text = "Нажми любую кнопку для повтора"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 22

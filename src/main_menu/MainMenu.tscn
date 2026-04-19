@@ -1,38 +1,47 @@
-[gd_scene format=3 uid="uid://mainmenu_qs1"]
+[gd_scene format=3 uid="uid://dof8l0dae3qq2"]
 
-[ext_resource type="Script" path="res://src/main_menu/MainMenu.cs" id="1_menu"]
+[ext_resource type="Script" uid="uid://kgc7npuwasa" path="res://src/main_menu/MainMenu.cs" id="1_menu"]
 
-[node name="MainMenu" type="Control"]
+[node name="MainMenu" type="Control" unique_id=860087941]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_menu")
 
-[node name="BG" type="ColorRect" parent="."]
+[node name="BG" type="ColorRect" parent="." unique_id=1789122640]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.08, 0.08, 0.14, 1)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="." unique_id=371342984]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="VBox" type="VBoxContainer" parent="Center"]
+[node name="VBox" type="VBoxContainer" parent="Center" unique_id=1491589698]
+layout_mode = 2
 theme_override_constants/separation = 30
 
-[node name="Title" type="Label" parent="Center/VBox"]
-text = "Quick and Squick"
+[node name="Title" type="Label" parent="Center/VBox" unique_id=562869546]
+layout_mode = 2
+theme_override_font_sizes/font_size = 98
+text = "Quick and Squeak"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 72
 
-[node name="Tagline" type="Label" parent="Center/VBox"]
+[node name="Tagline" type="Label" parent="Center/VBox" unique_id=1244720597]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
 text = "Найди все детали и спаси вечеринку!"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 22
 
-[node name="Spacer" type="Control" parent="Center/VBox"]
+[node name="Spacer" type="Control" parent="Center/VBox" unique_id=337845455]
 custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
 
-[node name="StartHint" type="Label" parent="Center/VBox"]
+[node name="StartHint" type="Label" parent="Center/VBox" unique_id=2114822979]
+layout_mode = 2
+theme_override_font_sizes/font_size = 56
 text = "Нажми любую кнопку для начала"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 26

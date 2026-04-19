@@ -1,56 +1,68 @@
-[gd_scene format=3 uid="uid://victory_qs01"]
+[gd_scene format=3 uid="uid://c2rys8coyaxsr"]
 
-[ext_resource type="Script" path="res://src/victory_screen/VictoryScreen.cs" id="1_victory"]
+[ext_resource type="Script" uid="uid://csjhnhtejw6ul" path="res://src/victory_screen/VictoryScreen.cs" id="1_victory"]
 
-[node name="VictoryScreen" type="Control"]
+[node name="VictoryScreen" type="Control" unique_id=721788633]
+layout_mode = 3
+anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 script = ExtResource("1_victory")
 
-[node name="BG" type="ColorRect" parent="."]
+[node name="BG" type="ColorRect" parent="." unique_id=1042380662]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 color = Color(0.1, 0.08, 0.18, 1)
 
-[node name="Center" type="CenterContainer" parent="."]
+[node name="Center" type="CenterContainer" parent="." unique_id=677348699]
+layout_mode = 0
 anchor_right = 1.0
 anchor_bottom = 1.0
 
-[node name="VBox" type="VBoxContainer" parent="Center"]
+[node name="VBox" type="VBoxContainer" parent="Center" unique_id=1152325001]
+layout_mode = 2
 theme_override_constants/separation = 20
 
-[node name="Win" type="Label" parent="Center/VBox"]
+[node name="Win" type="Label" parent="Center/VBox" unique_id=1359917576]
+layout_mode = 2
+theme_override_font_sizes/font_size = 108
 text = "Вы нашли пирог!"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 72
 
-[node name="PieSprite" type="Sprite2D" parent="Center/VBox"]
+[node name="PieSprite" type="Sprite2D" parent="Center/VBox" unique_id=603216914]
 
-[node name="ScoreMessage" type="Label" parent="Center/VBox"]
-text = ""
+[node name="ScoreMessage" type="Label" parent="Center/VBox" unique_id=887900467]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
 horizontal_alignment = 1
 autowrap_mode = 3
-theme_override_font_sizes/font_size = 26
 
-[node name="Spacer" type="Control" parent="Center/VBox"]
+[node name="Spacer" type="Control" parent="Center/VBox" unique_id=872024054]
 custom_minimum_size = Vector2(0, 20)
+layout_mode = 2
 
-[node name="Credits" type="Label" parent="Center/VBox"]
+[node name="Credits" type="Label" parent="Center/VBox" unique_id=548254463]
+layout_mode = 2
+theme_override_font_sizes/font_size = 48
 text = "— Программирование: Артём Кошко
 — Арт: Даша Гензе
 — TulaHack 2026"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 22
 
-[node name="Hint" type="Label" parent="."]
+[node name="Hint" type="Label" parent="." unique_id=1094691460]
+layout_mode = 1
+anchors_preset = 7
 anchor_left = 0.5
 anchor_top = 1.0
 anchor_right = 0.5
 anchor_bottom = 1.0
-offset_left = -240.0
-offset_top = -60.0
-offset_right = 240.0
-offset_bottom = -20.0
+offset_left = -486.0
+offset_top = -66.0
+offset_right = 489.0
+offset_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_font_sizes/font_size = 48
 text = "Нажми любую кнопку, чтобы вернуться"
 horizontal_alignment = 1
-theme_override_font_sizes/font_size = 18
