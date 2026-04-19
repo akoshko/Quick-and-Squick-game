@@ -39,6 +39,19 @@ public partial class GameManager : Node
         SetState(GameState.Playing);
     }
 
+    public override void _Process(double delta)
+    {
+        for (int device = 0; device <= 1; device++)
+        {
+            if (Input.IsJoyButtonPressed(device, JoyButton.Back) &&
+                Input.IsJoyButtonPressed(device, JoyButton.Start))
+            {
+                GetTree().Quit();
+                return;
+            }
+        }
+    }
+
     public override void _UnhandledInput(InputEvent @event)
     {
         if (!@event.IsActionPressed("pause")) return;
