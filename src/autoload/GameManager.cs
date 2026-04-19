@@ -17,7 +17,17 @@ public partial class GameManager : Node
     [Signal] public delegate void PartCollectedEventHandler(int total);
     [Signal] public delegate void AllPartsCollectedEventHandler();
 
-    public override void _Ready() => Instance = this;
+    public override void _Ready()
+    {
+        Instance = this;
+
+        var stream = GD.Load<AudioStreamMP3>("res://src/game/soundtrack.mp3");
+        stream.Loop = true;
+        var music = new AudioStreamPlayer();
+        music.Stream = stream;
+        AddChild(music);
+        music.Play();
+    }
 
     public void SetState(GameState newState)
     {
