@@ -268,19 +268,16 @@ position = Vector2(448, 194)
 position = Vector2(864, 146)
 
 [node name="back1" type="Sprite2D" parent="." unique_id=454841193]
-visible = false
 z_index = -100
 position = Vector2(603, 41)
 texture = ExtResource("9_ss4mk")
 
 [node name="back2" type="Sprite2D" parent="." unique_id=1310828182]
-visible = false
 z_index = -100
 position = Vector2(1730, 62)
 texture = ExtResource("10_da0yh")
 
 [node name="back3" type="Sprite2D" parent="." unique_id=1225386416]
-visible = false
 z_index = -100
 position = Vector2(2756, 64)
 texture = ExtResource("11_6pp6l")
