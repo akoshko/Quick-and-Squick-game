@@ -7,8 +7,8 @@ public partial class Player : CharacterBody2D
 {
     [Export] public int PlayerIndex { get; set; } = 1;
     [Export] public float Speed { get; set; } = 180f;
-    [Export] public float JumpVelocity { get; set; } = -400f;
-    [Export] public float PowerJumpVelocity { get; set; } = -600f;
+    [Export] public float JumpVelocity { get; set; } = -300f;
+    [Export] public float PowerJumpVelocity { get; set; } = -400f;
     [Export] public int MaxHp { get; set; } = 3;
 
     public int Hp { get; private set; }
@@ -35,6 +35,11 @@ public partial class Player : CharacterBody2D
         _animPlayer = GetNode<AnimationPlayer>("AnimationPlayer");
         _sprite = GetNode<Sprite2D>("Sprite2D");
         _collisionShape = GetNode<CollisionShape2D>("CollisionShape2D");
+
+        var texturePath = PlayerIndex == 1
+            ? "res://src/player/visuals/syrnik-Sheet.png"
+            : "res://src/player/visuals/pisklik-Sheet.png";
+        _sprite.Texture = GD.Load<Texture2D>(texturePath);
     }
 
     public override void _PhysicsProcess(double delta)
