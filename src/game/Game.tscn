@@ -253,7 +253,7 @@ script = ExtResource("4_cam")
 position = Vector2(315, 239)
 
 [node name="Pie" parent="." unique_id=1272578522 instance=ExtResource("6_dxb18")]
-position = Vector2(1821, 186)
+position = Vector2(2737, 187)
 
 [node name="MovingPlatform" parent="." unique_id=409647352 instance=ExtResource("7_yw8km")]
 position = Vector2(782, 164)
@@ -274,10 +274,10 @@ texture = ExtResource("9_ss4mk")
 
 [node name="back2" type="Sprite2D" parent="." unique_id=1310828182]
 z_index = -100
-position = Vector2(1730, 62)
+position = Vector2(1721, 62)
 texture = ExtResource("10_da0yh")
 
 [node name="back3" type="Sprite2D" parent="." unique_id=1225386416]
 z_index = -100
-position = Vector2(2756, 64)
+position = Vector2(2746, 65)
 texture = ExtResource("11_6pp6l")
