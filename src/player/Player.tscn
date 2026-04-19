@@ -1,7 +1,7 @@
 [gd_scene format=3 uid="uid://knsc8ix4wt87"]
 
 [ext_resource type="Script" uid="uid://i14iyr0uo44v" path="res://src/player/Player.cs" id="1_chb7w"]
-[ext_resource type="Texture2D" uid="uid://uihnjt6uvedu" path="res://src/player/visuals/syrnik_walk-Sheet.png" id="2_chb7w"]
+[ext_resource type="Texture2D" uid="uid://ctahu34phoim3" path="res://src/player/visuals/syrnik-Sheet.png" id="2_chb7w"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_player"]
 radius = 12.0
@@ -42,9 +42,9 @@ tracks/0/keys = {
 
 [sub_resource type="Animation" id="Animation_run"]
 resource_name = "run"
-length = 0.4
+length = 0.6
 loop_mode = 1
-step = 0.1
+step = 0.15
 tracks/0/type = "value"
 tracks/0/imported = false
 tracks/0/enabled = true
@@ -52,10 +52,10 @@ tracks/0/path = NodePath("Sprite2D:frame")
 tracks/0/interp = 1
 tracks/0/loop_wrap = true
 tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.1, 0.2, 0.3),
+"times": PackedFloat32Array(0, 0.15, 0.3, 0.45000002),
 "transitions": PackedFloat32Array(1, 1, 1, 1),
 "update": 1,
-"values": [0, 1, 2, 3]
+"values": [3, 4, 5, 4]
 }
 
 [sub_resource type="AnimationLibrary" id="AnimationLibrary_player"]
@@ -70,10 +70,10 @@ z_index = 5
 script = ExtResource("1_chb7w")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1132283256]
-position = Vector2(1.9073486e-06, -20.000002)
-scale = Vector2(0.1, 0.1)
+position = Vector2(-1, -25)
 texture = ExtResource("2_chb7w")
-hframes = 4
+hframes = 3
+vframes = 2
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=993046873]
 position = Vector2(0, -16)
