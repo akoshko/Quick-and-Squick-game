@@ -25,6 +25,7 @@ public partial class Main : Node2D
   {
     // Correct any erroneous scaling and guess sensible defaults.
     GetWindow().LookGood(WindowScaleBehavior.UIFixed, DesignResolution);
+    DisplayServer.WindowSetMode(DisplayServer.WindowMode.Fullscreen);
 
 #if RUN_TESTS
     // If this is a debug build, use GoDotTest to examine the
