@@ -1,9 +1,9 @@
 [gd_scene format=4 uid="uid://cd4280ovnpcrj"]
 
-[ext_resource type="Script" uid="uid://b6tredps6qfiy" path="res://src/game/Game.cs" id="1_game"]
+[ext_resource type="Script" uid="uid://b6tredps6qfiy" path="res://src/game/Game.gd" id="1_game"]
 [ext_resource type="PackedScene" uid="uid://knsc8ix4wt87" path="res://src/player/Player.tscn" id="2_player"]
 [ext_resource type="Texture2D" uid="uid://cr1bb73ouiwfl" path="res://src/game/visuals/merged.png" id="2_yw8km"]
-[ext_resource type="Script" uid="uid://b4vcprn6q3dgr" path="res://src/player_camera/PlayerCamera.cs" id="4_cam"]
+[ext_resource type="Script" uid="uid://b4vcprn6q3dgr" path="res://src/player_camera/PlayerCamera.gd" id="4_cam"]
 [ext_resource type="PackedScene" uid="uid://cw2qfr5mrpwas" path="res://src/enemy/WalkingBug.tscn" id="5_oijqn"]
 [ext_resource type="PackedScene" uid="uid://buco4yywcp88b" path="res://src/pie/Pie.tscn" id="6_dxb18"]
 [ext_resource type="PackedScene" uid="uid://ciiqbv7vvgdee" path="res://src/collectible/ComputerPart.tscn" id="8_bwaxr"]
@@ -245,7 +245,7 @@ position = Vector2(197, 237.99998)
 [node name="Player2" parent="." unique_id=1258764617 instance=ExtResource("2_player")]
 unique_name_in_owner = true
 position = Vector2(114, 237.99998)
-PlayerIndex = 2
+player_index = 2
 
 [node name="SpawnPoint1" type="Marker2D" parent="." unique_id=1893753333]
 unique_name_in_owner = true

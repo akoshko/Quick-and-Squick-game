@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://wok47rb1oi66"]
 
-[ext_resource type="Script" uid="uid://cub2adeai34eg" path="res://src/defeat_menu/DefeatMenu.cs" id="1_defeat"]
+[ext_resource type="Script" uid="uid://cub2adeai34eg" path="res://src/defeat_menu/DefeatMenu.gd" id="1_defeat"]
 
 [node name="DefeatMenu" type="Control" unique_id=1352818574]
 layout_mode = 3

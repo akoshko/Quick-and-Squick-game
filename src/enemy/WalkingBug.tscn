@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cw2qfr5mrpwas"]
 
-[ext_resource type="Script" uid="uid://bdke13g3pjqiw" path="res://src/enemy/WalkingBug.cs" id="1_bug"]
+[ext_resource type="Script" uid="uid://bdke13g3pjqiw" path="res://src/enemy/WalkingBug.gd" id="1_bug"]
 [ext_resource type="Texture2D" uid="uid://ctw1gmebuhj57" path="res://src/enemy/visuals/slime_green.png" id="2_0qxxe"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_body"]

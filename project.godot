@@ -12,12 +12,12 @@ config_version=5
 
 config/name="QuickAndSquick"
 run/main_scene="res://src/Main.tscn"
-config/features=PackedStringArray("4.6", "C#", "Mobile")
+config/features=PackedStringArray("4.7", "C#", "Mobile")
 config/icon="uid://c0yvif4h4sw0c"
 
 [autoload]
 
-GameManager="*res://src/autoload/GameManager.cs"
+GameManager="*res://src/autoload/GameManager.gd"
 
 [display]
 

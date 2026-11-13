@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://cxvtmsb01kdme"]
 
-[ext_resource type="Script" uid="uid://ckv724rkojs2x" path="res://src/platform/MovingPlatform.cs" id="1_platform"]
+[ext_resource type="Script" uid="uid://ckv724rkojs2x" path="res://src/platform/MovingPlatform.gd" id="1_platform"]
 [ext_resource type="Texture2D" uid="uid://3g2n2bq5s7jv" path="res://src/game/visuals/world_tileset.png" id="2_oc3v1"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_platform"]

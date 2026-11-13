@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://knsc8ix4wt87"]
 
-[ext_resource type="Script" uid="uid://i14iyr0uo44v" path="res://src/player/Player.cs" id="1_chb7w"]
+[ext_resource type="Script" uid="uid://i14iyr0uo44v" path="res://src/player/Player.gd" id="1_chb7w"]
 [ext_resource type="Texture2D" uid="uid://ctahu34phoim3" path="res://src/player/visuals/syrnik-Sheet.png" id="2_chb7w"]
 
 [sub_resource type="CapsuleShape2D" id="CapsuleShape2D_player"]

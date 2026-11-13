@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://colig1s07gne8"]
 
-[ext_resource type="Script" uid="uid://dlwhad6j51rry" path="res://src/splash/SplashScreen.cs" id="1_splash"]
+[ext_resource type="Script" uid="uid://dlwhad6j51rry" path="res://src/splash/SplashScreen.gd" id="1_splash"]
 
 [node name="SplashScreen" type="Control" unique_id=1839937413]
 layout_mode = 3

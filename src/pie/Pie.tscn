@@ -1,6 +1,6 @@
 [gd_scene format=3 uid="uid://buco4yywcp88b"]
 
-[ext_resource type="Script" uid="uid://bp8baa0tlrfj0" path="res://src/pie/Pie.cs" id="1_pie"]
+[ext_resource type="Script" uid="uid://bp8baa0tlrfj0" path="res://src/pie/Pie.gd" id="1_pie"]
 [ext_resource type="Texture2D" uid="uid://cja5mnodhtpjl" path="res://src/game/visuals/tilemap-Sheet.png" id="2_ql5w7"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_pie"]
