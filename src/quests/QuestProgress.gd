@@ -77,7 +77,8 @@ func _layout() -> void:
 	_open_button.custom_minimum_size.y = font * 2.4
 	_title.add_theme_font_size_override("font_size", font)
 	_status.add_theme_font_size_override("font_size", maxi(8, roundi(font * 0.75)))
-	_done_icon.custom_minimum_size = Vector2.ONE * font
+	var icon_scale := clampf(screen.y / maxf(screen.x, 1.0), 1.0, 1.5)
+	_done_icon.custom_minimum_size = Vector2.ONE * roundi(font * icon_scale)
 	_open_button.add_theme_font_size_override("font_size", font)
 	_panel.position = Vector2(margin, margin)
 	_panel.reset_size.call_deferred()

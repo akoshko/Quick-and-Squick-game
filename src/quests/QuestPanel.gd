@@ -1,7 +1,7 @@
 class_name QuestPanel
 extends CanvasLayer
 
-const DONE_ICON = preload("res://src/quests/quest_done.svg")
+const DONE_ICON = preload("res://src/quests/quest_done_journal.svg")
 const GOLD := Color(1, 0.85, 0.45)
 
 @export var font_ratio := 0.032
@@ -82,6 +82,7 @@ func _build() -> void:
 func _layout() -> void:
 	var size := get_viewport().get_visible_rect().size
 	var font := maxi(8, int(minf(size.y, size.x * 1.45) * font_ratio))
+	var icon_scale := clampf(size.y / maxf(size.x, 1.0), 1.0, 1.5)
 	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
 	style.set_content_margin_all(font * 0.6)
 	style.set_corner_radius_all(roundi(font * 0.5))
@@ -90,8 +91,9 @@ func _layout() -> void:
 	box.add_theme_constant_override("separation", roundi(font * 0.5))
 	var row_height := font * 2.4
 	_list.add_theme_font_size_override("font_size", font)
-	_resize_expanders(roundi(font * 0.85))
-	_list.add_theme_constant_override("icon_max_width", roundi(font * 1.2))
+	_resize_expanders(roundi(font * 0.85 * icon_scale))
+	var check_scale := clampf(size.y / maxf(size.x, 1.0), 1.0, 1.8)
+	_list.add_theme_constant_override("icon_max_width", roundi(font * 1.4 * check_scale))
 	_tabs.add_theme_font_size_override("font_size", font)
 	_list.add_theme_constant_override("item_margin", roundi(font))
 	_list.add_theme_constant_override("v_separation", roundi(font * 0.4))
