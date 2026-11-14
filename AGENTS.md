@@ -22,6 +22,8 @@ GohuFont is configured through `assets/GohuTheme.tres`. Keep MSDF enabled for sm
 
 Run the game in Godot after gameplay changes. For UI or asset changes, inspect the affected scene at its target aspect ratio, especially both quest panels in portrait mode. Add tests to the existing GoDotTest harness only when the change concerns its .NET code.
 
+When restoring solid objects during gameplay, test with the player both inside the restored area and mid-step at its edge. Verify that the player can exit and resume normal movement.
+
 ## Commits and Pull Requests
 
 Recent commits use short, imperative summaries (for example, “Improve quest icon sizes in portrait mode”). Include only changes for the current task. If a file contains unrelated edits, stage only the relevant lines or hunks—for example, in `project.godot`. Pull requests should summarize the change, note how it was checked, link related issues when available, and include screenshots for visual changes.

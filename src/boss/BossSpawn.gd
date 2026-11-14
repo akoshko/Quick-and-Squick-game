@@ -9,7 +9,7 @@ extends Node2D
 ## При появлении босса точка «ломает» свою локацию:
 ##   knock_zone  — все ресурсы этой зоны опрокидываются (еда рассыпана);
 ##   clear_tiles — клетки стола, которые босс сносит (станут полом
-##                 clear_floor, ресурсы на них пропадают).
+##                 clear_floor, ресурсы и декор на них пропадают).
 ## После победы (или ухода босса) всё возвращается: столы — сразу,
 ## опрокинутую еду через 5 секунд убирают модераторы.
 
@@ -25,6 +25,7 @@ extends Node2D
 @export var clear_floor := Vector2i(4, 0)
 
 var _saved_tiles := {}                       # клетка -> [source, atlas, alternative]
+var _saved_decor := {}                       # слой -> клетки декора и их тайлы
 var _removed: Array[ResourceStation] = []    # ресурсы, снесённые вместе со столом
 var _knocked: Array[ResourceStation] = []    # опрокинутые ресурсы зоны
 
@@ -45,6 +46,16 @@ func apply() -> void:
 			_saved_tiles[cell] = [layer.get_cell_source_id(cell), layer.get_cell_atlas_coords(cell),
 					layer.get_cell_alternative_tile(cell)]
 			layer.set_cell(cell, 0, clear_floor)
+	for objects: TileMapLayer in get_tree().get_nodes_in_group(Grid.OBJECTS_GROUP):
+		var decor := {}
+		for cell in objects.get_used_cells():
+			var world := objects.to_global(objects.map_to_local(cell))
+			if clear_tiles.has_point(Grid.world_to_cell(self, world)):
+				decor[cell] = [objects.get_cell_source_id(cell), objects.get_cell_atlas_coords(cell),
+						objects.get_cell_alternative_tile(cell)]
+				objects.erase_cell(cell)
+		if not decor.is_empty():
+			_saved_decor[objects] = decor
 	for node in get_tree().get_nodes_in_group("resource_station"):
 		var station := node as ResourceStation
 		if station and clear_tiles.has_point(Grid.world_to_cell(self, station.global_position)):
@@ -55,15 +66,26 @@ func apply() -> void:
 ## Вернуть локацию после победы или ухода босса
 func release() -> void:
 	var layer := Grid.get_layer(self)
+	var restored_tiles := layer != null and not _saved_tiles.is_empty()
 	if layer:
 		for cell: Vector2i in _saved_tiles:
 			var saved: Array = _saved_tiles[cell]
 			layer.set_cell(cell, saved[0], saved[1], saved[2])
 	_saved_tiles.clear()
+	for objects: TileMapLayer in _saved_decor:
+		if is_instance_valid(objects):
+			for cell: Vector2i in _saved_decor[objects]:
+				var saved: Array = _saved_decor[objects][cell]
+				objects.set_cell(cell, saved[0], saved[1], saved[2])
+	_saved_decor.clear()
 	for station in _removed:
 		if is_instance_valid(station):
 			station.set_removed(false)
 	_removed.clear()
+	if restored_tiles:
+		for node in get_tree().current_scene.get_children():
+			if node is Player and node.is_visible_in_tree():
+				node.check_restored_tiles(clear_tiles)
 	for station in _knocked:
 		if is_instance_valid(station):
 			station.release_after_boss()

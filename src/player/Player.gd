@@ -45,6 +45,8 @@ var _target_position: Vector2   # куда сейчас едем (в пиксе�
 var _is_moving := false         # «занят» ли персонаж (едет на подшаг)
 var _walk_distance := -1.0      # путь с прошлой анимации шага (-1 — стояли)
 var _idle_time := 0.0           # фаза «дыхания» в покое
+var _restored_tiles := Rect2i()
+var _restore_frame := 0
 
 ## Куда смотрит игрок. Нужен для взаимодействия: предметы узнают
 ## отсюда, в какую сторону их толкают.
@@ -87,6 +89,15 @@ func _physics_process(delta: float) -> void:
 	if GameManager.state == GameManager.GameState.PAUSED:
 		return
 
+	if _restore_frame != 0:
+		if Engine.get_physics_frames() < _restore_frame:
+			return
+		if (not _escape_overlap() and _is_moving
+				and test_move(global_transform, _target_position - global_position)):
+			_is_moving = false
+		_restore_frame = 0
+		_restored_tiles = Rect2i()
+
 	# 1. Если едем — плавно приближаемся к цели
 	if _is_moving:
 		global_position = global_position.move_toward(_target_position, move_speed * delta)
@@ -96,14 +107,15 @@ func _physics_process(delta: float) -> void:
 	# 2. Если стоим — читаем кнопки и пробуем шагнуть.
 	# Кнопки читаются только когда стоим, поэтому is_action_pressed
 	# не разгонит персонажа, а при удержании он идёт без остановок.
-	if not _is_moving and Input.is_action_just_pressed("action"):
-		_interact()
-
 	if not _is_moving:
 		var direction := _read_direction()
-		if direction != Vector2i.ZERO:
+		if Input.is_action_just_pressed("action"):
+			_interact()
+		if _restore_frame == 0 and direction != Vector2i.ZERO:
 			_try_step(direction)
-		else:
+			if not _is_moving:
+				_escape_overlap(direction)
+		elif direction == Vector2i.ZERO:
 			_walk_distance = -1.0   # остановились — следующий шаг начнётся с анимации
 
 	_update_hint()
@@ -176,6 +188,71 @@ func _try_diagonal_step(direction: Vector2i, step: float) -> void:
 
 func _substep() -> float:
 	return Grid.tile_size(self).x / SUBSTEPS
+
+
+func check_restored_tiles(tiles: Rect2i) -> void:
+	if not tiles.grow(1).has_point(Grid.world_to_cell(self, global_position)):
+		return
+	_restored_tiles = tiles
+	# TileMapLayer и станции обновляют коллизии отложенно.
+	_restore_frame = Engine.get_physics_frames() + 1
+
+
+func _escape_overlap(direction := Vector2i.ZERO) -> bool:
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = _collision_shape.shape
+	query.transform = _collision_shape.global_transform
+	query.collision_mask = collision_mask
+	var space := get_world_2d().direct_space_state
+	var overlaps := space.intersect_shape(query)
+	if overlaps.is_empty():
+		return false
+	var starting_bodies := {}
+	for hit in overlaps:
+		starting_bodies[hit.rid] = true
+
+	var origin := query.transform
+	var layer := Grid.get_layer(self)
+	var step := _substep()
+	var cell_center := Grid.cell_to_world(self, Grid.world_to_cell(self, global_position))
+	var aligned := cell_center + (global_position - cell_center).snapped(Vector2.ONE * step)
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	if direction != Vector2i.ZERO:
+		directions.erase(direction)
+		directions.push_front(direction)
+	var max_steps := (maxi(1, maxi(_restored_tiles.size.x, _restored_tiles.size.y)) + 1) * SUBSTEPS
+	var closest_target := global_position
+	var closest_distance := INF
+	for dir in directions:
+		for n in range(1, max_steps + 1):
+			var target := aligned + Vector2(dir) * step * n
+			var shifted := origin
+			shifted.origin += target - global_position
+			query.transform = shifted
+			overlaps = space.intersect_shape(query)
+			if overlaps.is_empty():
+				var distance := global_position.distance_squared_to(target)
+				if distance < closest_distance:
+					closest_distance = distance
+					closest_target = target
+				break
+			# Можно выйти через восстановленный предмет, но не через соседнюю стену.
+			if overlaps.any(func(hit: Dictionary) -> bool:
+				if starting_bodies.has(hit.rid):
+					return false
+				if hit.collider == layer:
+					return not _restored_tiles.has_point(layer.get_coords_for_body_rid(hit.rid))
+				if hit.collider is ResourceStation:
+					return not _restored_tiles.has_point(Grid.world_to_cell(self, hit.collider.global_position))
+				return true):
+				break
+		if direction != Vector2i.ZERO and closest_distance < INF:
+			break
+	if closest_distance == INF:
+		return false
+	_walk_distance = -1.0
+	_start_substep(closest_target)
+	return true
 
 
 # Ищем свободный путь вперёд, сдвинувшись вбок на 1..CORNER_NUDGE_STEPS

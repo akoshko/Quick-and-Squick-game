@@ -176,7 +176,10 @@ func _exit_tree() -> void:
 		get_tree().paused = _was_paused
 
 
-func _unhandled_key_input(event: InputEvent) -> void:
-	if _root.visible and event.is_action_pressed("ui_cancel"):
-		close()
+func _input(event: InputEvent) -> void:
+	if event.is_action_pressed("pause") or (_root.visible and event.is_action_pressed("ui_cancel")):
 		get_viewport().set_input_as_handled()
+		if _root.visible:
+			close()
+		elif not get_tree().paused and GameManager.state == GameManager.GameState.PLAYING:
+			open()
