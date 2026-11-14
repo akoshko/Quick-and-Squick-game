@@ -9,7 +9,6 @@ const GOLD := Color(1, 0.85, 0.45)
 var _root: Control
 var _was_paused := false
 var _panel: PanelContainer
-var _tabs: TabBar
 var _list: Tree
 var _arrow_size := 0
 var _heading: Label
@@ -64,12 +63,6 @@ func _build() -> void:
 	_close_button.pressed.connect(close)
 	header.add_child(_close_button)
 
-	_tabs = TabBar.new()
-	_tabs.add_tab("Доступные")
-	_tabs.add_tab("Выполненные")
-	_tabs.tab_changed.connect(_refresh)
-	box.add_child(_tabs)
-
 	_list = Tree.new()
 	_list.hide_root = true
 	_list.size_flags_vertical = Control.SIZE_EXPAND_FILL
@@ -94,7 +87,6 @@ func _layout() -> void:
 	_resize_expanders(roundi(font * 0.85 * icon_scale))
 	var check_scale := clampf(size.y / maxf(size.x, 1.0), 1.0, 1.8)
 	_list.add_theme_constant_override("icon_max_width", roundi(font * 1.4 * check_scale))
-	_tabs.add_theme_font_size_override("font_size", font)
 	_list.add_theme_constant_override("item_margin", roundi(font))
 	_list.add_theme_constant_override("v_separation", roundi(font * 0.4))
 	_panel.custom_minimum_size = Vector2(size.x * 0.88, size.y * 0.84)
@@ -117,33 +109,33 @@ func _resize_expanders(size: int) -> void:
 func _refresh(_value: Variant = null) -> void:
 	_list.clear()
 	var root := _list.create_item()
-	var show_completed := _tabs.current_tab == 1
-	for quest in Quests.quests:
-		if quest.done != show_completed:
-			continue
-		var item := _list.create_item(root)
-		item.set_text(0, quest.title)
-		if quest.done:
-			item.set_icon(0, DONE_ICON)
-		if quest.id == Quests.selected_quest_id:
-			item.set_text(0, item.get_text(0) + "  ·  Текущий квест")
-			item.set_custom_color(0, GOLD)
-		item.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
-		item.set_metadata(0, quest.id)
-		item.set_selectable(0, not Quests.all_done())
-		for step in quest.steps:
-			var row := _list.create_item(item)
-			row.set_text(0, step.title)
-			row.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
-			row.set_selectable(0, false)
-			if step.done:
-				row.set_icon(0, DONE_ICON)
-				row.set_custom_color(0, Color(0.55, 1, 0.62))
-			else:
-				break
+	for show_completed in [false, true]:
+		for quest in Quests.quests:
+			if quest.done != show_completed:
+				continue
+			var item := _list.create_item(root)
+			item.set_text(0, quest.title)
+			if quest.done:
+				item.set_icon(0, DONE_ICON)
+			if quest.id == Quests.selected_quest_id:
+				item.set_text(0, item.get_text(0) + "  ·  Текущий квест")
+				item.set_custom_color(0, GOLD)
+			item.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
+			item.set_metadata(0, quest.id)
+			item.set_selectable(0, not Quests.all_done())
+			for step in quest.steps:
+				var row := _list.create_item(item)
+				row.set_text(0, step.title)
+				row.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
+				row.set_selectable(0, false)
+				if step.done:
+					row.set_icon(0, DONE_ICON)
+					row.set_custom_color(0, Color(0.55, 1, 0.62))
+				else:
+					break
 	if root.get_child_count() == 0:
 		var empty := _list.create_item(root)
-		empty.set_text(0, "Нет выполненных квестов" if show_completed else "Нет доступных квестов")
+		empty.set_text(0, "Нет квестов")
 		empty.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
 		empty.set_selectable(0, false)
 	_layout()
