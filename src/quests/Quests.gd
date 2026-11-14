@@ -68,8 +68,9 @@ func complete(id: String) -> void:
 		parent_quest.done = true
 		quest_completed.emit(parent_quest)
 		completed_quest = parent_quest
-	if completed_quest.id == selected_quest_id:
-		_advance_after_completion(completed_quest)
+	var selected := find(selected_quest_id)
+	if selected and selected.done and (selected == completed_quest or all_done()):
+		_advance_after_completion(selected)
 	changed.emit()
 	if all_done():
 		all_completed.emit()
@@ -83,6 +84,8 @@ func _advance_after_completion(completed_quest: Quest) -> void:
 		if not next_quest.done:
 			select_quest(next_quest.id)
 			return
+	selected_quest_id = ""
+	selected_quest_changed.emit(selected_quest_id)
 
 
 func is_done(id: String) -> bool:
@@ -91,6 +94,8 @@ func is_done(id: String) -> bool:
 
 
 func select_quest(id: String) -> void:
+	if all_done():
+		return
 	if not quests.any(func(quest: Quest) -> bool: return quest.id == id) or selected_quest_id == id:
 		return
 	selected_quest_id = id

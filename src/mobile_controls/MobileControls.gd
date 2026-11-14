@@ -74,9 +74,10 @@ func _make_button(action: String, normal: Texture2D, pressed: Texture2D) -> Touc
 # Расставляет кнопки по углам экрана; вызывается и при повороте/смене размера
 func _layout() -> void:
 	var screen := get_viewport().get_visible_rect().size
-	var margin := screen.y * margin_ratio
+	var control_scale_basis := minf(screen.y, screen.x * 1.2)
+	var margin := control_scale_basis * margin_ratio
 
-	var dpad_scale := screen.y * dpad_button_ratio / TEX_SIZE
+	var dpad_scale := control_scale_basis * dpad_button_ratio / TEX_SIZE
 	var btn := TEX_SIZE * dpad_scale
 	var center := Vector2(margin + btn * 1.5, screen.y - margin - btn * 1.5)
 	for action in _dpad:
@@ -85,7 +86,7 @@ func _layout() -> void:
 		# position у кнопки — её левый верхний угол
 		button.position = center + DIRECTIONS[action] * btn - Vector2.ONE * btn / 2.0
 
-	var action_scale := screen.y * action_button_ratio / TEX_SIZE
+	var action_scale := control_scale_basis * action_button_ratio / TEX_SIZE
 	var size := TEX_SIZE * action_scale
 	_action_button.scale = Vector2.ONE * action_scale
 	_action_button.position = Vector2(screen.x - margin - size, screen.y - margin - size)

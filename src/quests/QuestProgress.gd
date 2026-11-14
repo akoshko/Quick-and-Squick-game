@@ -8,6 +8,7 @@ var _panel: PanelContainer
 var _header: Label
 var _title: Label
 var _status: Label
+var _done_icon: TextureRect
 var _open_button: Button
 
 
@@ -40,9 +41,18 @@ func _build() -> void:
 	_title.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	box.add_child(_title)
 
+	var status_row := HBoxContainer.new()
+	box.add_child(status_row)
+	_done_icon = TextureRect.new()
+	_done_icon.texture = preload("res://src/quests/quest_done.svg")
+	_done_icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_done_icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	status_row.add_child(_done_icon)
+
 	_status = Label.new()
+	_status.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	box.add_child(_status)
+	status_row.add_child(_status)
 
 	_open_button = Button.new()
 	_open_button.text = "Все квесты"
@@ -52,8 +62,9 @@ func _build() -> void:
 
 func _layout() -> void:
 	var screen := get_viewport().get_visible_rect().size
-	var font := maxi(8, int(screen.y * font_ratio))
-	var margin := screen.y * margin_ratio
+	var layout_height := minf(screen.y, screen.x * 1.45)
+	var font := maxi(8, int(layout_height * font_ratio))
+	var margin := layout_height * margin_ratio
 	var padding := font * 0.6
 	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
 	style.set_content_margin_all(padding)
@@ -66,6 +77,7 @@ func _layout() -> void:
 	_open_button.custom_minimum_size.y = font * 2.4
 	_title.add_theme_font_size_override("font_size", font)
 	_status.add_theme_font_size_override("font_size", maxi(8, roundi(font * 0.75)))
+	_done_icon.custom_minimum_size = Vector2.ONE * font
 	_open_button.add_theme_font_size_override("font_size", font)
 	_panel.position = Vector2(margin, margin)
 	_panel.reset_size.call_deferred()
@@ -73,13 +85,21 @@ func _layout() -> void:
 
 func _refresh(_quest_id: String = "") -> void:
 	var quest := Quests.find(Quests.selected_quest_id)
+	var show_completion := quest == null and Quests.all_done()
+	if show_completion:
+		_title.add_theme_color_override("font_color", _header.get_theme_color("font_color"))
+	else:
+		_title.remove_theme_color_override("font_color")
+	_header.visible = quest != null
+	_status.get_parent().visible = quest != null
+	_done_icon.visible = quest != null and quest.done
 	if quest:
 		_title.text = quest.title
 		var step := quest.active_step()
-		_status.text = "✓ Выполнен" if quest.done else (step.title if step else "Выполняется")
+		_status.text = "Выполнен" if quest.done else (step.title if step else "Выполняется")
 		_status.add_theme_color_override("font_color", Color(0.55, 1, 0.62) if quest.done else Color(1, 1, 1))
 	else:
-		_title.text = "Квесты не добавлены"
+		_title.text = "Квесты выполнены" if show_completion else "Квесты не добавлены"
 		_status.text = ""
 	_layout()
 

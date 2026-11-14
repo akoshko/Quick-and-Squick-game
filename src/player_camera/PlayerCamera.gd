@@ -24,7 +24,8 @@ func _process(delta: float) -> void:
 
 
 func _update_zoom() -> void:
-	var screen_height := get_viewport_rect().size.y
+	var screen := get_viewport_rect().size
+	var screen_height := minf(screen.y, screen.x * 1.5)
 	var world_height := visible_rows * Grid.tile_size(self).y
 	zoom = Vector2.ONE * (screen_height / world_height)
 

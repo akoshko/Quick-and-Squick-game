@@ -1,6 +1,7 @@
 class_name QuestPanel
 extends CanvasLayer
 
+const DONE_ICON = preload("res://src/quests/quest_done.svg")
 const GOLD := Color(1, 0.85, 0.45)
 
 @export var font_ratio := 0.032
@@ -10,6 +11,7 @@ var _was_paused := false
 var _panel: PanelContainer
 var _tabs: TabBar
 var _list: Tree
+var _arrow_size := 0
 var _heading: Label
 var _close_button: Button
 
@@ -79,7 +81,7 @@ func _build() -> void:
 
 func _layout() -> void:
 	var size := get_viewport().get_visible_rect().size
-	var font := maxi(8, int(size.y * font_ratio))
+	var font := maxi(8, int(minf(size.y, size.x * 1.45) * font_ratio))
 	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
 	style.set_content_margin_all(font * 0.6)
 	style.set_corner_radius_all(roundi(font * 0.5))
@@ -88,6 +90,8 @@ func _layout() -> void:
 	box.add_theme_constant_override("separation", roundi(font * 0.5))
 	var row_height := font * 2.4
 	_list.add_theme_font_size_override("font_size", font)
+	_resize_expanders(roundi(font * 0.85))
+	_list.add_theme_constant_override("icon_max_width", roundi(font * 1.2))
 	_tabs.add_theme_font_size_override("font_size", font)
 	_list.add_theme_constant_override("item_margin", roundi(font))
 	_list.add_theme_constant_override("v_separation", roundi(font * 0.4))
@@ -95,6 +99,17 @@ func _layout() -> void:
 	_close_button.custom_minimum_size.y = row_height
 	_heading.add_theme_font_size_override("font_size", int(font * 1.1))
 	_close_button.add_theme_font_size_override("font_size", font)
+
+
+func _resize_expanders(size: int) -> void:
+	if size == _arrow_size:
+		return
+	_arrow_size = size
+	for icon_name in ["arrow", "arrow_collapsed", "arrow_collapsed_mirrored"]:
+		var icon := ThemeDB.get_default_theme().get_icon(icon_name, "Tree")
+		var image := icon.get_image()
+		image.resize(size, size, Image.INTERPOLATE_LANCZOS)
+		_list.add_theme_icon_override(icon_name, ImageTexture.create_from_image(image))
 
 
 func _refresh(_value: Variant = null) -> void:
@@ -105,25 +120,29 @@ func _refresh(_value: Variant = null) -> void:
 		if quest.done != show_completed:
 			continue
 		var item := _list.create_item(root)
-		var marker := "✓" if quest.done else "○"
-		item.set_text(0, "%s  %s" % [marker, quest.title])
+		item.set_text(0, quest.title)
+		if quest.done:
+			item.set_icon(0, DONE_ICON)
 		if quest.id == Quests.selected_quest_id:
 			item.set_text(0, item.get_text(0) + "  ·  Текущий квест")
 			item.set_custom_color(0, GOLD)
-		item.set_tooltip_text(0, item.get_text(0))
+		item.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
 		item.set_metadata(0, quest.id)
+		item.set_selectable(0, not Quests.all_done())
 		for step in quest.steps:
 			var row := _list.create_item(item)
-			row.set_text(0, "%s  %s" % ["✓" if step.done else "○", step.title])
-			row.set_tooltip_text(0, row.get_text(0))
+			row.set_text(0, step.title)
+			row.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
 			row.set_selectable(0, false)
 			if step.done:
+				row.set_icon(0, DONE_ICON)
 				row.set_custom_color(0, Color(0.55, 1, 0.62))
 			else:
 				break
 	if root.get_child_count() == 0:
 		var empty := _list.create_item(root)
 		empty.set_text(0, "Нет выполненных квестов" if show_completed else "Нет доступных квестов")
+		empty.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
 		empty.set_selectable(0, false)
 	_layout()
 
