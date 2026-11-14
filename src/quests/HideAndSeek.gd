@@ -16,6 +16,10 @@ var _moderator_lines: PackedStringArray
 var _searching := false
 
 
+func _enter_tree() -> void:
+	$Participant.sprite_texture = CharacterLook.build("red", "short", "blonde")
+
+
 func _ready() -> void:
 	_moderator_lines = moderator.lines
 	moderator.dialogue_finished.connect(_on_moderator_dialogue_finished)

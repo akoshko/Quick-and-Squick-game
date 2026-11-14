@@ -20,7 +20,6 @@
 [ext_resource type="Script" uid="uid://bnwavuhlujx8j" path="res://src/mobile_controls/MobileControls.gd" id="18_mobile"]
 [ext_resource type="Script" uid="uid://b4vcprn6q3dgr" path="res://src/player_camera/PlayerCamera.gd" id="19_camera"]
 [ext_resource type="Script" uid="uid://cw3wqyjd0siru" path="res://src/quests/HideAndSeek.gd" id="20_hide_and_seek"]
-[ext_resource type="Texture2D" uid="uid://dicodr7qotdps" path="res://src/chel_1.png" id="21_participant"]
 
 [sub_resource type="TileSetAtlasSource" id="Atlas_floor"]
 texture = ExtResource("2_floor")
@@ -395,10 +394,9 @@ moderator = NodePath("../ModeratorSnack1")
 visible = false
 collision_layer = 0
 collision_mask = 0
-npc_name = "Участник"
+npc_name = "Сергей"
 quest_id = ""
 lines = PackedStringArray("Доброе утро")
-sprite_texture = ExtResource("21_participant")
 
 [node name="BossDirector" type="Node" parent="." unique_id=745247602]
 script = ExtResource("14_boss_dir")

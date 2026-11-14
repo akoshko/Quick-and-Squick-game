@@ -23,7 +23,6 @@
 [ext_resource type="Script" uid="uid://yw5p3lhd110c" path="res://src/boss/BossSpawn.gd" id="25_boss_spawn"]
 
 [ext_resource type="Script" uid="uid://cw3wqyjd0siru" path="res://src/quests/HideAndSeek.gd" id="26_hide_and_seek"]
-[ext_resource type="Texture2D" path="res://src/chel_1.png" id="27_participant"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_office"]
 texture = ExtResource("2_office")
@@ -353,10 +352,9 @@ moderator = NodePath("../ModeratorSnack1")
 visible = false
 collision_layer = 0
 collision_mask = 0
-npc_name = "Участник"
+npc_name = "Сергей"
 quest_id = ""
 lines = PackedStringArray("Доброе утро")
-sprite_texture = ExtResource("27_participant")
 
 [node name="BossDirector" type="Node" parent="." unique_id=1109512131]
 script = ExtResource("20_boss_dir")
