@@ -248,8 +248,8 @@ func check_restored_tiles(tiles: Rect2i) -> void:
 	if not tiles.grow(1).has_point(Grid.world_to_cell(self, global_position)):
 		return
 	_restored_tiles = tiles
-	# TileMapLayer и станции обновляют коллизии отложенно.
-	_restore_frame = Engine.get_physics_frames() + 1
+	# После отложенного обновления тайлов физике нужен ещё один кадр.
+	_restore_frame = Engine.get_physics_frames() + 2
 
 
 func _escape_overlap(direction := Vector2i.ZERO) -> bool:

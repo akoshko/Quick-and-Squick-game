@@ -45,6 +45,18 @@ The included [`global.json`](./global.json) specifies the version of the .NET SD
 
 ## 👷 Testing
 
+Run the GDScript gameplay suite from the repository root with Godot 4.7 installed:
+
+```sh
+./test/gameplay/run.sh
+```
+
+Set `GODOT` to the executable path if Godot is outside `PATH`. The suite imports the
+project, runs the real scenes headlessly in a 390 × 844 portrait viewport, and stores
+the test character profile in a temporary directory.
+
+### Legacy .NET template tests
+
 An example test is included in `test/src/GameTest.cs` that demonstrates how to write a test for your package using [GoDotTest] and [godot-test-driver].
 
 > [GoDotTest] is an easy-to-use testing framework for Godot and C# that allows you to run tests from the command line, collect code coverage, and debug tests in VSCode.

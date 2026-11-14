@@ -4,7 +4,7 @@ extends Area2D
 
 
 func _ready() -> void:
-	collision_mask = 1 # Игрок на физическом слое 1
+	collision_mask = 2 # Игрок на физическом слое 2
 	body_entered.connect(_on_body_entered)
 
 	var anim := get_node_or_null("AnimationPlayer") as AnimationPlayer
