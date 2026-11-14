@@ -83,6 +83,7 @@ func spawn_boss(at: BossSpawn = null) -> void:
 
 func _on_defeated() -> void:
 	Quests.complete(_quest_id)
+	GameManager.unlock_achievement(&"boss_victory")
 	_bar.hide_boss()
 	_bar.show_banner("ВЕЛИКИЙ ВРАГ ПОВЕРЖЕН")
 	_end_event()

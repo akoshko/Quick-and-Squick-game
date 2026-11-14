@@ -6,8 +6,13 @@ const DESIGN_RESOLUTION := Vector2i(3840, 2160) # UHD 4K
 
 
 func _ready() -> void:
-	_look_good()
-	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
+	if "--portrait" in OS.get_cmdline_user_args():
+		get_window().mode = Window.MODE_WINDOWED
+		get_window().content_scale_mode = Window.CONTENT_SCALE_MODE_DISABLED
+		get_window().size = Vector2i(390, 844)
+	else:
+		_look_good()
+		DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_FULLSCREEN)
 	_run_scene.call_deferred()
 
 

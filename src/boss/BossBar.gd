@@ -9,6 +9,8 @@ extends CanvasLayer
 const NAME_COLOR := Color(0.92, 0.88, 0.8)
 const FELLED_COLOR := Color(1, 0.84, 0.45)
 
+signal health_layout_changed
+
 var _root: Control
 var _name: Label
 var _bar: SegmentBar
@@ -46,6 +48,7 @@ class SegmentBar extends Control:
 
 
 func _ready() -> void:
+	add_to_group("boss_bar")
 	layer = 6
 	_root = Control.new()
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -75,6 +78,7 @@ func _ready() -> void:
 
 func show_boss(title: String, max_hp: int) -> void:
 	_name.text = title
+	_layout()
 	_bar.segments = max_hp
 	_bar.hp = max_hp
 	_bar.trail = max_hp
@@ -115,6 +119,11 @@ func show_banner(text: String, color := FELLED_COLOR) -> void:
 func _set_boss_visible(on: bool) -> void:
 	_name.visible = on
 	_bar.visible = on
+	health_layout_changed.emit()
+
+
+func health_bottom() -> float:
+	return _bar.get_rect().end.y + 2.0 if _bar.visible else 0.0
 
 
 # Размеры — от размера экрана: полоса по центру сверху
@@ -137,3 +146,4 @@ func _layout() -> void:
 	_banner.add_theme_constant_override("outline_size", maxi(3, int(banner_font / 8.0)))
 	_banner.size = Vector2(screen.x, banner_font * 2.0)
 	_banner.position = Vector2(0, (screen.y - _banner.size.y) / 2.0)
+	health_layout_changed.emit()

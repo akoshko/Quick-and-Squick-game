@@ -7,6 +7,7 @@ This branch develops a new Godot 4.7 game. The entry scene is `src/Main.tscn`; g
 ## Build, Run, and Test
 
 - `godot --path .` opens/runs the game with the installed Godot executable.
+- `godot --path . -- --portrait` opens the game in a portrait window with touch controls for mobile layout checks.
 - `dotnet build` is relevant only when changing the existing .NET project or test harness; prefer GDScript for game behavior and features.
 - `./coverage.sh` runs the existing GoDotTest suite and produces a coverage report; use it for .NET/test-harness changes when its prerequisites are installed.
 
@@ -27,6 +28,10 @@ When restoring solid objects during gameplay, test with the player both inside t
 When changing default NPC dialogue, check scene overrides and verify dialogue that depends on quest state.
 
 When changing where an NPC appears or its draw order, run the scene in a Godot window with the player nearby. Visually verify that the NPC appears in the intended spot and that the sprites overlap in the intended order.
+
+When changing the HUD or achievement notifications, use portrait mode to check that notifications do not cover the current quest, the boss health bar, or journal controls. Trigger two notifications in quick succession and verify that both appear in order, including when the journal is opened and closed between them.
+
+Add new achievements to the shared list in `src/quests/QuestPanel.gd` and unlock them through `GameManager.unlock_achievement(id)`. For hidden achievements, verify that the title and description are revealed only after unlocking.
 
 ## Commits and Pull Requests
 

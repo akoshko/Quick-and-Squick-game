@@ -28,7 +28,7 @@ var _action_button: TouchScreenButton
 
 func _ready() -> void:
 	layer = 10   # поверх HUD
-	visible = show_on_desktop or _is_phone()
+	visible = show_on_desktop or _is_phone() or "--portrait" in OS.get_cmdline_user_args()
 	if not visible:
 		return
 
