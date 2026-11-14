@@ -38,7 +38,7 @@ steps = Array[ExtResource("2_quest")]([SubResource("Quest_cookie")])
 [sub_resource type="Resource" id="Quest_computer"]
 script = ExtResource("2_quest")
 id = "work_time"
-title = "Делу время..."
+title = "Делу время"
 steps = Array[ExtResource("2_quest")]([SubResource("Quest_laptop")])
 
 [node name="Quests" type="Node"]

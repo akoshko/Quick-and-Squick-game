@@ -44,6 +44,7 @@ enabled=PackedStringArray()
 
 [gui]
 
+theme/custom="res://assets/GohuTheme.tres"
 theme/default_font_multichannel_signed_distance_field=true
 theme/default_font_generate_mipmaps=true
 theme/default_theme_scale=2.0
