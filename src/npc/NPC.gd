@@ -11,6 +11,8 @@ extends StaticBody2D
 @export var npc_name := "Коллега"
 ## Задание, которое выполняется, когда игрок дослушал все реплики (пусто — никакое)
 @export var quest_id := "talk_npc"
+## После завершения этого квеста NPC только здоровается.
+@export var greeting_after_quest_id := ""
 @export var lines: PackedStringArray = [
 	"Привет! Ты новенький?",
 	"Говорят, в лаундже стоят очень мягкие кресла-мешки...",
@@ -42,6 +44,13 @@ func _ready() -> void:
 
 func interact(player: Player) -> void:
 	_talking_to = player
+	if not greeting_after_quest_id.is_empty() and Quests.is_done(greeting_after_quest_id):
+		if _bubble.visible and _line_index == -1:
+			_close()
+		else:
+			_line_index = -1
+			_show_line("Привет!")
+		return
 	_line_index += 1
 	if _line_index >= lines.size():
 		# Дослушали до конца — разговор состоялся

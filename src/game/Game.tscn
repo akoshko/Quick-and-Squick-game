@@ -11,10 +11,11 @@
 [ext_resource type="PackedScene" path="res://src/bean_bag/BeanBag.tscn" id="12_bag"]
 [ext_resource type="PackedScene" path="res://src/npc/NPC.tscn" id="13_npc"]
 [ext_resource type="PackedScene" path="res://src/laptop/Laptop.tscn" id="15_laptop"]
-[ext_resource type="Script" uid="uid://wetis00kfsku" path="res://src/quests/QuestPanel.gd" id="16_quests"]
+[ext_resource type="Script" path="res://src/quests/QuestProgress.gd" id="16_quests"]
 [ext_resource type="PackedScene" path="res://src/stations/SnackStation.tscn" id="17_snack"]
 [ext_resource type="Script" uid="uid://bowdipl6eqcgb" path="res://src/zone/Zone.gd" id="18_zone"]
 [ext_resource type="PackedScene" path="res://src/npc/Moderator.tscn" id="19_mod"]
+[ext_resource type="Script" path="res://src/quests/QuestPanel.gd" id="21_quest_list"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_office"]
 texture = ExtResource("2_office")
@@ -77,6 +78,7 @@ position = Vector2(106, -118)
 
 [node name="NPC" parent="." unique_id=1093384521 instance=ExtResource("13_npc")]
 position = Vector2(400, 124)
+greeting_after_quest_id = "main"
 
 [node name="ZoneHackathon" type="Node2D" parent="." unique_id=1473158606]
 y_sort_enabled = true
@@ -148,8 +150,11 @@ position = Vector2(32, 28)
 position = Vector2(464, 176)
 lines = ["Привет! Ты новенький?", "Говорят, в лаундже стоят очень мягкие кресла-мешки...", "Попробуй подвинуть один, только никому не говори!"]
 
-[node name="QuestPanel" type="CanvasLayer" parent="." unique_id=1847261190]
+[node name="QuestProgress" type="CanvasLayer" parent="." unique_id=1847261190]
 script = ExtResource("16_quests")
+
+[node name="QuestPanel" type="CanvasLayer" parent="."]
+script = ExtResource("21_quest_list")
 
 [node name="MobileControls" type="CanvasLayer" parent="." unique_id=420517391]
 script = ExtResource("11_mobile")

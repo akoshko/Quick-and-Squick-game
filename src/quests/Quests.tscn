@@ -1,4 +1,4 @@
-[gd_scene load_steps=6 format=3]
+[gd_scene load_steps=10 format=3]
 
 [ext_resource type="Script" path="res://src/quests/Quests.gd" id="1_quests"]
 [ext_resource type="Script" path="res://src/quests/Quest.gd" id="2_quest"]
@@ -18,6 +18,29 @@ script = ExtResource("2_quest")
 id = "poke_laptop"
 title = "Потыкать в ноутбук"
 
+[sub_resource type="Resource" id="Quest_push"]
+script = ExtResource("2_quest")
+id = "push_bean_bag"
+title = "Подвинуть кресло-мешок"
+
+[sub_resource type="Resource" id="Quest_main"]
+script = ExtResource("2_quest")
+id = "main"
+title = "Освоиться в офисе"
+steps = Array[ExtResource("2_quest")]([SubResource("Quest_talk"), SubResource("Quest_push")])
+
+[sub_resource type="Resource" id="Quest_snack"]
+script = ExtResource("2_quest")
+id = "never_too_late"
+title = "Никогда не поздно"
+steps = Array[ExtResource("2_quest")]([SubResource("Quest_cookie")])
+
+[sub_resource type="Resource" id="Quest_computer"]
+script = ExtResource("2_quest")
+id = "work_time"
+title = "Делу время..."
+steps = Array[ExtResource("2_quest")]([SubResource("Quest_laptop")])
+
 [node name="Quests" type="Node"]
 script = ExtResource("1_quests")
-quests = Array[ExtResource("2_quest")]([SubResource("Quest_talk"), SubResource("Quest_cookie"), SubResource("Quest_laptop")])
+quests = Array[ExtResource("2_quest")]([SubResource("Quest_main"), SubResource("Quest_snack"), SubResource("Quest_computer")])

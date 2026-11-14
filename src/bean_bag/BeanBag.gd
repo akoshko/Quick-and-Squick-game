@@ -11,6 +11,7 @@ extends CharacterBody2D
 
 @export var move_speed: float = 90.0     # мешок тяжёлый — едет медленнее игрока
 @export var color := Color(0.85, 0.45, 0.2)
+@export var quest_id := "push_bean_bag"
 
 var _target_position: Vector2
 var _is_moving := false
@@ -48,6 +49,8 @@ func push(direction: Vector2i) -> void:
 
 	_target_position = target_pos
 	_is_moving = true
+	if not quest_id.is_empty():
+		Quests.complete(quest_id)
 	_squish()
 
 
