@@ -106,10 +106,10 @@ func _build_bubble() -> void:
 	style.border_color = BUBBLE_BORDER
 	style.set_border_width_all(1)
 	style.set_corner_radius_all(4)
-	style.content_margin_left = 5
-	style.content_margin_right = 5
-	style.content_margin_top = 3
-	style.content_margin_bottom = 4
+	style.content_margin_left = 8
+	style.content_margin_right = 8
+	style.content_margin_top = 6
+	style.content_margin_bottom = 6
 
 	_panel = PanelContainer.new()
 	_panel.mouse_filter = Control.MOUSE_FILTER_IGNORE   # не перехватывать касания
@@ -118,7 +118,7 @@ func _build_bubble() -> void:
 
 	var vbox := VBoxContainer.new()
 	vbox.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	vbox.add_theme_constant_override("separation", 0)
+	vbox.add_theme_constant_override("separation", 1)
 	_panel.add_child(vbox)
 
 	var name_label := Label.new()
