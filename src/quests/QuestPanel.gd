@@ -22,9 +22,8 @@ var _panel: PanelContainer
 var _list: Tree
 var _tabs: TabContainer
 var _achievement_cards: VBoxContainer
-var _achievement_popup: PanelContainer
+var _achievement_popups: VBoxContainer
 var _cards_by_id: Dictionary[StringName, PanelContainer] = {}
-var _notification_queue: Array[PanelContainer] = []
 var _boss_bar: BossBar
 var _arrow_size := 0
 var _heading: Label
@@ -38,7 +37,7 @@ func _ready() -> void:
 	GameManager.achievement_unlocked.connect(_on_achievement_unlocked)
 	_boss_bar = get_tree().get_first_node_in_group("boss_bar") as BossBar
 	if _boss_bar:
-		_boss_bar.health_layout_changed.connect(_layout_achievement_popup)
+		_boss_bar.health_layout_changed.connect(_layout_achievement_popups)
 	Quests.changed.connect(_refresh)
 	Quests.selected_quest_changed.connect(_refresh)
 	get_viewport().size_changed.connect(_layout)
@@ -95,6 +94,12 @@ func _build() -> void:
 	_build_achievements()
 
 	_root.hide()
+
+	_achievement_popups = VBoxContainer.new()
+	_achievement_popups.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(_achievement_popups)
+	_achievement_popups.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
+	_achievement_popups.grow_horizontal = Control.GROW_DIRECTION_BEGIN
 
 
 func _build_achievements() -> void:
@@ -181,34 +186,17 @@ func _on_achievement_unlocked(id: StringName) -> void:
 func show_achievement_notification(achievement_title: String, icon: Texture2D) -> void:
 	var card := _make_achievement_card()
 	_set_card_content(card, icon, "Новое достижение", achievement_title, GOLD, Color.WHITE)
-	card.hide()
-	add_child(card)
-	_notification_queue.append(card)
-	_show_next_achievement_popup()
-
-
-func _show_next_achievement_popup() -> void:
-	if _root.visible or is_instance_valid(_achievement_popup) or _notification_queue.is_empty():
-		return
-	_achievement_popup = _notification_queue.pop_front()
-	for control in _achievement_popup.find_children("*", "Control", true, false):
+	for control in card.find_children("*", "Control", true, false):
 		control.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_achievement_popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_achievement_popup.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
-	_achievement_popup.grow_horizontal = Control.GROW_DIRECTION_BEGIN
-	_layout_achievement_popup()
-	_achievement_popup.show()
-	var tween := _achievement_popup.create_tween()
+	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_achievement_popups.add_child(card)
+	_layout_achievement_popups()
+
+	var tween := card.create_tween()
 	tween.set_pause_mode(Tween.TWEEN_PAUSE_STOP)
 	tween.tween_interval(5.0)
-	tween.tween_property(_achievement_popup, "modulate:a", 0.0, 0.3)
-	tween.tween_callback(_finish_achievement_popup)
-
-
-func _finish_achievement_popup() -> void:
-	_achievement_popup.queue_free()
-	_achievement_popup = null
-	_show_next_achievement_popup()
+	tween.tween_property(card, "modulate:a", 0.0, 0.3)
+	tween.tween_callback(card.queue_free)
 
 
 func _layout() -> void:
@@ -237,24 +225,24 @@ func _layout() -> void:
 	_achievement_cards.add_theme_constant_override("separation", roundi(font * 0.35))
 	for card in _achievement_cards.get_children():
 		_layout_achievement_card(card, font)
-	_layout_achievement_popup()
+	_layout_achievement_popups()
 
 
-func _layout_achievement_popup() -> void:
-	if not is_instance_valid(_achievement_popup):
-		return
+func _layout_achievement_popups() -> void:
 	var size := get_viewport().get_visible_rect().size
 	var font := maxi(8, int(minf(size.y, size.x * 1.45) * font_ratio))
-	_layout_achievement_card(_achievement_popup, font)
+	_achievement_popups.add_theme_constant_override("separation", roundi(font * 0.35))
+	for card in _achievement_popups.get_children():
+		_layout_achievement_card(card, font)
 	var margin := float(font)
 	var width := minf(font * 16.0, size.x * 0.35)
 	var top := margin
 	if is_instance_valid(_boss_bar):
 		top += _boss_bar.health_bottom()
-	_achievement_popup.offset_left = -margin - width
-	_achievement_popup.offset_right = -margin
-	_achievement_popup.offset_top = top
-	_achievement_popup.offset_bottom = top
+	_achievement_popups.offset_left = -margin - width
+	_achievement_popups.offset_right = -margin
+	_achievement_popups.offset_top = top
+	_achievement_popups.offset_bottom = top
 
 
 func _layout_achievement_card(card: PanelContainer, font: int) -> void:
@@ -335,8 +323,7 @@ func open() -> void:
 	_was_paused = get_tree().paused
 	get_tree().paused = true
 	_root.show()
-	if is_instance_valid(_achievement_popup):
-		_achievement_popup.hide()
+	_achievement_popups.hide()
 	_close_button.grab_focus()
 
 
@@ -348,10 +335,7 @@ func close() -> void:
 		focused.release_focus()
 	_root.hide()
 	get_tree().paused = _was_paused
-	if is_instance_valid(_achievement_popup):
-		_achievement_popup.show()
-	else:
-		_show_next_achievement_popup()
+	_achievement_popups.show()
 
 
 func _exit_tree() -> void:
