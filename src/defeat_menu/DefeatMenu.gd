@@ -20,7 +20,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if not event.is_pressed():
 		return
-	if event is InputEventKey or event is InputEventJoypadButton:
+	# клавиатура, геймпад или касание экрана (телефон)
+	if event is InputEventKey or event is InputEventJoypadButton or event is InputEventScreenTouch or event is InputEventMouseButton:
 		_gone = true
 		GameManager.reset()
 		get_tree().change_scene_to_file("res://src/game/Game.tscn")

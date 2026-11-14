@@ -1,80 +1,20 @@
 [gd_scene format=3 uid="uid://knsc8ix4wt87"]
 
 [ext_resource type="Script" uid="uid://i14iyr0uo44v" path="res://src/player/Player.gd" id="1_chb7w"]
-[ext_resource type="Texture2D" uid="uid://ctahu34phoim3" path="res://src/player/visuals/syrnik-Sheet.png" id="2_chb7w"]
+[ext_resource type="Texture2D" uid="uid://dicodr7qotdps" path="res://src/chel_1.png" id="2_chel"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_player"]
-size = Vector2(24, 24)
-
-[sub_resource type="Animation" id="Animation_reset"]
-length = 0.001
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0),
-"transitions": PackedFloat32Array(1),
-"update": 1,
-"values": [0]
-}
-
-[sub_resource type="Animation" id="Animation_idle"]
-resource_name = "idle"
-length = 0.4
-loop_mode = 1
-step = 0.2
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.2),
-"transitions": PackedFloat32Array(1, 1),
-"update": 1,
-"values": [0, 1]
-}
-
-[sub_resource type="Animation" id="Animation_run"]
-resource_name = "run"
-length = 0.6
-loop_mode = 1
-step = 0.15
-tracks/0/type = "value"
-tracks/0/imported = false
-tracks/0/enabled = true
-tracks/0/path = NodePath("Sprite2D:frame")
-tracks/0/interp = 1
-tracks/0/loop_wrap = true
-tracks/0/keys = {
-"times": PackedFloat32Array(0, 0.15, 0.3, 0.45000002),
-"transitions": PackedFloat32Array(1, 1, 1, 1),
-"update": 1,
-"values": [3, 4, 5, 4]
-}
-
-[sub_resource type="AnimationLibrary" id="AnimationLibrary_player"]
-_data = {
-&"RESET": SubResource("Animation_reset"),
-&"idle": SubResource("Animation_idle"),
-&"run": SubResource("Animation_run")
-}
+size = Vector2(16, 16)
 
 [node name="Player" type="CharacterBody2D" unique_id=1878393648]
+collision_layer = 2
 script = ExtResource("1_chb7w")
 
 [node name="Sprite2D" type="Sprite2D" parent="." unique_id=1132283256]
-position = Vector2(-1, -13)
-texture = ExtResource("2_chb7w")
-hframes = 3
-vframes = 2
+position = Vector2(0, 16)
+texture = ExtResource("2_chel")
+offset = Vector2(0, -16)
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="." unique_id=993046873]
+position = Vector2(0, 4)
 shape = SubResource("RectangleShape2D_player")
-
-[node name="AnimationPlayer" type="AnimationPlayer" parent="." unique_id=1745354792]
-libraries/ = SubResource("AnimationLibrary_player")

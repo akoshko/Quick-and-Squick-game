@@ -2,20 +2,22 @@ extends Node2D
 
 ## Основная сцена уровня: HUD, переходы на экраны победы/поражения.
 
-@onready var _player1: Player = %Player1
-@onready var _parts_label: Label = %PartsLabel
+# Надпись со счётчиком деталей необязательна: если её нет в HUD,
+# счётчик просто не показывается
+@onready var _parts_label: Label = get_node_or_null("%PartsLabel")
 
 
 func _ready() -> void:
-	#_player1.hp_changed.connect(_on_hp_changed)
-	#_player2.hp_changed.connect(_on_hp_changed)
-	#_player1.died.connect(_on_player_died)
-	#_player2.died.connect(_on_player_died)
+	#%Player1.hp_changed.connect(_on_hp_changed)
+	#%Player2.hp_changed.connect(_on_hp_changed)
+	#%Player1.died.connect(_on_player_died)
+	#%Player2.died.connect(_on_player_died)
 
 	GameManager.part_collected.connect(_on_part_collected)
 	GameManager.all_parts_collected.connect(_on_all_parts_collected)
 	GameManager.state_changed.connect(_on_state_changed)
 	GameManager.reset()
+	Quests.reset()
 
 
 func _exit_tree() -> void:
@@ -29,11 +31,13 @@ func _on_player_died(_player_index: int) -> void:
 
 
 func _on_part_collected(total: int) -> void:
-	_parts_label.text = "Детали: %d / %d" % [total, GameManager.PARTS_NEEDED]
+	if _parts_label:
+		_parts_label.text = "Детали: %d / %d" % [total, GameManager.PARTS_NEEDED]
 
 
 func _on_all_parts_collected() -> void:
-	_parts_label.text = "Все детали собраны! Найди пирог!"
+	if _parts_label:
+		_parts_label.text = "Все детали собраны! Найди пирог!"
 
 
 func _on_state_changed(new_state: GameManager.GameState) -> void:

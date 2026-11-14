@@ -6,6 +6,7 @@
 size = Vector2(28, 28)
 
 [node name="BeanBag" type="CharacterBody2D"]
+collision_mask = 3
 script = ExtResource("1_bag")
 
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]

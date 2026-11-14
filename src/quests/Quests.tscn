@@ -1,0 +1,23 @@
+[gd_scene load_steps=6 format=3]
+
+[ext_resource type="Script" path="res://src/quests/Quests.gd" id="1_quests"]
+[ext_resource type="Script" path="res://src/quests/Quest.gd" id="2_quest"]
+
+[sub_resource type="Resource" id="Quest_talk"]
+script = ExtResource("2_quest")
+id = "talk_npc"
+title = "Поговорить с коллегой"
+
+[sub_resource type="Resource" id="Quest_cookie"]
+script = ExtResource("2_quest")
+id = "snack"
+title = "Перекусить"
+
+[sub_resource type="Resource" id="Quest_laptop"]
+script = ExtResource("2_quest")
+id = "poke_laptop"
+title = "Потыкать в ноутбук"
+
+[node name="Quests" type="Node"]
+script = ExtResource("1_quests")
+quests = Array[ExtResource("2_quest")]([SubResource("Quest_talk"), SubResource("Quest_cookie"), SubResource("Quest_laptop")])

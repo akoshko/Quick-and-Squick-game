@@ -39,6 +39,12 @@ func _ready() -> void:
 				_make_arrow_texture(dir, BG_PRESSED_COLOR))
 		# можно вести пальцем по крестовине, не отрывая его
 		button.passby_press = true
+		# Зона касания стрелки растянута на углы крестовины: в углу зоны
+		# двух стрелок пересекаются, и палец жмёт обе — это диагональ
+		var shape := RectangleShape2D.new()
+		shape.size = Vector2(TEX_SIZE * 3, TEX_SIZE) if dir.y != 0 else Vector2(TEX_SIZE, TEX_SIZE * 3)
+		button.shape = shape
+		button.shape_centered = true
 		_dpad[action] = button
 
 	_action_button = _make_button("action",
