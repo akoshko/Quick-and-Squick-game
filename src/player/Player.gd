@@ -14,8 +14,14 @@ extends CharacterBody2D
 const IFRAME_DURATION := 1.2
 const SUBSTEPS := 4            # шаг = тайл / 4 = 8 px
 const CORNER_NUDGE_STEPS := 2  # на сколько подшагов «доводим» к проходу у угла
+const NAMEPLATE_FONT_SIZE := 8  # ник над головой (в пикселях мира)
+const NAMEPLATE_Y := -17.0      # нижний край ника — чуть выше макушки
 
 #@export var player_index: int = 1
+## Этим персонажем управляет этот компьютер (клавиатура, геймпад, экран).
+## Сетевые игроки — is_local = false: их двигает и одевает сетевой код
+## (позиция — с сервера, внешность — через set_appearance()).
+@export var is_local := true
 @export var move_speed: float = 120.0   # пикселей в секунду
 # Размер клетки берётся из TileMapLayer уровня (см. Grid.gd)
 
@@ -52,7 +58,8 @@ var _restore_frame := 0
 ## отсюда, в какую сторону их толкают.
 var facing := Vector2i.DOWN
 
-var _hint: InteractHint   # подсказка «нажми E» над ближайшим предметом
+var _hint: InteractHint   # подсказка «нажми E» над ближайшим предметом (только у своего)
+var _nameplate: Label     # ник над головой
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
@@ -79,8 +86,49 @@ func _ready() -> void:
 		set_physics_process(false)
 		return
 
-	_hint = InteractHint.new()
-	add_child(_hint)
+	if is_local:
+		# Подсказка «E» и внешность из профиля — только у своего персонажа
+		_hint = InteractHint.new()
+		add_child(_hint)
+		set_appearance(PlayerProfile.to_dict())
+
+
+## Применить внешность и ник. Данные — словарь {nickname, hoodie,
+## hair_style, hair_color}: из PlayerProfile.to_dict() для своего игрока
+## или пришедший по сети для чужого (проверяется через sanitize).
+func set_appearance(data: Dictionary) -> void:
+	var clean := CharacterLook.sanitize(data)
+	_sprite.texture = CharacterLook.build_from(clean)
+	_set_nameplate(clean.nickname)
+
+
+## Для сетевого игрока: плавно перейти в точку (пришедшую с сервера).
+## Анимация шага играет так же, как у своего персонажа.
+func move_to(world_pos: Vector2, new_facing := facing) -> void:
+	facing = new_facing
+	var dx := world_pos.x - global_position.x
+	if dx != 0.0:
+		_sprite.flip_h = (dx < 0.0) != sprite_faces_left
+	if world_pos != global_position:
+		_start_substep(world_pos)
+
+
+# Ник над головой (пустой ник — без таблички)
+func _set_nameplate(nickname: String) -> void:
+	if _nameplate == null:
+		_nameplate = Label.new()
+		_nameplate.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		_nameplate.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_nameplate.add_theme_font_size_override("font_size", NAMEPLATE_FONT_SIZE)
+		_nameplate.add_theme_color_override("font_color", Color(1, 1, 1))
+		_nameplate.add_theme_color_override("font_outline_color", Color(0.08, 0.08, 0.12))
+		_nameplate.add_theme_constant_override("outline_size", 3)
+		_nameplate.z_index = 50
+		add_child(_nameplate)
+	_nameplate.text = nickname
+	_nameplate.visible = not nickname.is_empty()
+	_nameplate.reset_size()
+	_nameplate.position = Vector2(-_nameplate.size.x / 2.0, NAMEPLATE_Y - _nameplate.size.y)
 
 
 func _physics_process(delta: float) -> void:
@@ -103,6 +151,12 @@ func _physics_process(delta: float) -> void:
 		global_position = global_position.move_toward(_target_position, move_speed * delta)
 		if global_position == _target_position:
 			_is_moving = false
+
+	# Сетевого игрока клавиатура не двигает — его позицию задаёт сетевой код
+	# (например, через move_to()), а мы только доводим его до цели выше.
+	if not is_local:
+		_tick_iframes(delta)
+		return
 
 	# 2. Если стоим — читаем кнопки и пробуем шагнуть.
 	# Кнопки читаются только когда стоим, поэтому is_action_pressed

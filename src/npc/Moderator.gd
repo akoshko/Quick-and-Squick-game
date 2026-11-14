@@ -28,6 +28,9 @@ var _goals: Array[Vector2i] = []
 var _step_target := Vector2.ZERO
 var _stepping := false
 var _wait := 0.0
+var _stuck := 0                          # сколько раз подряд упёрлись в следующую клетку
+var _avoid: Array[Vector2i] = []         # клетки, в которые физически не пройти (на этот поход)
+const STUCK_LIMIT := 5                   # ≈2 секунды упираемся — ищем обход мимо этой клетки
 var _post := Vector2i.ZERO
 var _bob_phase := 0.0
 var _bob := 0.0
@@ -106,6 +109,8 @@ func _start_job(station: ResourceStation) -> void:
 
 func _walk_to(goals: Array[Vector2i]) -> bool:
 	_goals = goals
+	_avoid.clear()
+	_stuck = 0
 	_path = Grid.find_path(self, _cell(), goals, _blockers())
 	if _path.is_empty():
 		_wait = 1.0
@@ -135,14 +140,34 @@ func _walk(delta: float) -> void:
 	if test_move(global_transform, target - global_position):
 		# На пути предмет (например, мешок подвинули) — ждём и ищем обход
 		_wait = 0.4
-		var detour := Grid.find_path(self, _cell(), _goals, _blockers())
+		_stuck += 1
+		if _stuck >= STUCK_LIMIT and not (_path[0] in _avoid):
+			_avoid.append(_path[0])   # по сетке клетка свободна, а физически не пройти — обходим её
+		var blocked := _blockers()
+		blocked.append_array(_avoid)
+		var detour := Grid.find_path(self, _cell(), _goals, blocked)
 		if not detour.is_empty():
 			_path = detour
+		elif _stuck >= STUCK_LIMIT:
+			_give_up()                # обхода нет — отложим вызов и попробуем позже
 		return
+	_stuck = 0
 	_path.remove_at(0)
 	_step_target = target
 	_stepping = true
 	face_horizontal(target.x - global_position.x)
+
+
+# Не дойти до вызова: возвращаем его в очередь и пробуем позже с чистого листа
+func _give_up() -> void:
+	if _job != null:
+		_jobs.append(_job)
+		_job = null
+	_path.clear()
+	_avoid.clear()
+	_stuck = 0
+	_state = State.IDLE
+	_wait = 2.0
 
 
 func _arrive() -> void:

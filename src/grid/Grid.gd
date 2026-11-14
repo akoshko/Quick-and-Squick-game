@@ -13,7 +13,8 @@ class_name Grid
 const GROUP := "grid"
 const OBJECTS_GROUP := "grid_objects"
 const FALLBACK_TILE_SIZE := 32   # если на сцене нет слоя с сеткой
-const OBJECT_OVERLAP := 6.0      # насколько (px) мебель должна заходить в клетку, чтобы её занять
+const OBJECT_OVERLAP := 4.0      # насколько (px) мебель должна заходить в клетку, чтобы её занять
+								 # (модератор 24 px: в клетке 32 у него по 4 px запаса с каждой стороны)
 
 static var _object_cells := {}        # клетки, занятые мебелью (кэш на кадр)
 static var _object_cells_frame := -1

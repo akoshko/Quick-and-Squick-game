@@ -1,27 +1,53 @@
 class_name Laptop
 extends ResourceStation
 
-## Рабочий ноутбук хакатона на столе. По «действию» игрок в него тыкает:
-## экран мигает, всплывает реплика. После pokes_needed тычков ноутбук
-## «зависает» (синий экран) и выполняется задание. Через 5 секунд
-## приходит модератор и чинит его.
+## Рабочий компьютер хакатона на столе (ноутбук или монитор — поле style).
+## По «действию» игрок в него тыкает: экран мигает, всплывает реплика.
+## После pokes_needed тычков компьютер «зависает» (синий экран) и выполняется
+## задание. Через 5 секунд приходит модератор и чинит его.
+##
+## Спрайты — с листа res://src/tile_map.png (клетки 16×16):
+##   ноутбук: колонка 14 — код (2 кадра), синий экран, красный экран;
+##   монитор: колонки 15–17 — код (2 кадра), синий грустный, красный злой, «!».
 
+enum Style { LAPTOP, MONITOR }
+
+@export var style := Style.LAPTOP
 @export var quest_id := "poke_laptop"   ## какое задание выполнить (пусто — никакое)
 @export var pokes_needed := 3
 @export var poke_lines: PackedStringArray = ["тык", "тык-тык", "Ой, всё. Завис."]
+## Лист со спрайтами компьютеров
+@export var sheet: Texture2D = preload("res://src/tile_map.png")
 
-const SCREEN_ON := Color(0.35, 0.75, 0.95)
-const SCREEN_CRASHED := Color(0.1, 0.25, 0.85)
+const FRAME_TIME := 0.45   # смена кадров «бегущего кода»
+const FLASH_TIME := 0.3    # сколько держится реакция на тычок
+# Клетки листа (16×16) для каждого состояния
+const FRAMES := {
+	Style.LAPTOP: {"code": [Vector2i(14, 6), Vector2i(14, 7)], "poke": Vector2i(14, 9),
+			"crashed": Vector2i(14, 8), "knocked": Vector2i(14, 9)},
+	Style.MONITOR: {"code": [Vector2i(15, 8), Vector2i(15, 9)], "poke": Vector2i(17, 8),
+			"crashed": Vector2i(16, 8), "knocked": Vector2i(16, 9)},
+}
 
 var _pokes := 0
-var _screen := SCREEN_ON
-var _shake := 0.0
+var _time := 0.0
+var _flash := 0.0
+var _sprite: Sprite2D
+var _atlas: AtlasTexture
 
 
 func _ready() -> void:
 	super()
 	if refill_text == "":
 		refill_text = "Починил!"
+	_atlas = AtlasTexture.new()
+	_atlas.atlas = sheet
+	_sprite = Sprite2D.new()
+	_sprite.texture = _atlas
+	_sprite.position = Vector2(0, -2)   # стоит на столешнице
+	add_child(_sprite)
+	_time = randf() * FRAME_TIME * 2.0  # компьютеры «мигают» не синхронно
+	_update_frame()
 
 
 func interact(_player: Player) -> void:
@@ -35,43 +61,48 @@ func interact(_player: Player) -> void:
 	FloatingText.spawn(self, global_position + Vector2(0, -14), line)
 
 	if _pokes >= pokes_needed:
-		_screen = SCREEN_CRASHED
 		if quest_id != "":
 			Quests.complete(quest_id)
 		_set_empty()   # «закончился» — через 5 с модератор починит
 	else:
-		# Экран мигает случайным цветом и возвращается
-		_screen = Color.from_hsv(randf(), 0.5, 1.0)
-		create_tween().tween_property(self, "_screen", SCREEN_ON, 0.3)
+		_flash = FLASH_TIME   # короткая реакция на тычок
+	_update_frame()
 
 
 func _on_refilled() -> void:
 	_pokes = 0
-	_screen = SCREEN_ON
+	_flash = 0.0
 	_poke_shake()
+	_update_frame()
 
 
-func _poke_shake() -> void:
-	var t := create_tween()
-	t.tween_property(self, "_shake", 1.0, 0.04)
-	t.tween_property(self, "_shake", 0.0, 0.16).set_trans(Tween.TRANS_ELASTIC)
+func _process(delta: float) -> void:
+	_time += delta
+	_flash = maxf(0.0, _flash - delta)
+	_update_frame()
 
 
-func _process(_delta: float) -> void:
-	queue_redraw()   # меняются цвет экрана и встряска
-
-
-# Рисуем кодом, пока нет спрайта. Ноутбук стоит на столе (тайл стола).
-func _draw() -> void:
-	draw_set_transform(Vector2(_shake * 1.5, -_shake), 0.0, Vector2.ONE)
-	draw_rect(Rect2(-10, 3, 20, 3), Color(0, 0, 0, 0.18))                   # тень на столе
-	draw_rect(Rect2(-9, -10, 18, 13), Color(0.22, 0.23, 0.27))               # крышка
-	draw_rect(Rect2(-7.5, -8.5, 15, 10), _screen)                            # экран
-	if is_empty:
-		draw_rect(Rect2(-5, -6, 6, 1), Color(1, 1, 1, 0.9))                  # «текст» синего экрана
-		draw_rect(Rect2(-5, -3, 10, 1), Color(1, 1, 1, 0.7))
-		draw_rect(Rect2(-5, -1, 8, 1), Color(1, 1, 1, 0.7))
+func _update_frame() -> void:
+	if _atlas == null:
+		return
+	var frames: Dictionary = FRAMES[style]
+	var cell: Vector2i
+	if is_knocked:
+		cell = frames.knocked          # босс опрокинул
+	elif is_empty:
+		cell = frames.crashed          # завис — ждёт модератора
+	elif _flash > 0.0:
+		cell = frames.poke             # только что ткнули
 	else:
-		draw_rect(Rect2(-6, -7, 4, 1.5), Color(1, 1, 1, 0.6))                # блик
-	draw_rect(Rect2(-10, 3, 20, 3), Color(0.68, 0.7, 0.75))                  # клавиатурная часть
-	draw_rect(Rect2(-3, 3.5, 6, 1), Color(0.5, 0.52, 0.56))                  # тачпад
+		var code: Array = frames.code  # работает: «бегущий код»
+		cell = code[int(_time / FRAME_TIME) % code.size()]
+	_atlas.region = Rect2(Vector2(cell) * 16.0, Vector2(16, 16))
+
+
+# Встряска от тычка: спрайт подпрыгивает и пружинит
+func _poke_shake() -> void:
+	if _sprite == null:
+		return
+	var t := create_tween()
+	t.tween_property(_sprite, "position", Vector2(1.5, -3), 0.04)
+	t.tween_property(_sprite, "position", Vector2(0, -2), 0.16).set_trans(Tween.TRANS_ELASTIC)

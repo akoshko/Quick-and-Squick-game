@@ -11,16 +11,16 @@
 [ext_resource type="PackedScene" path="res://src/bean_bag/BeanBag.tscn" id="12_bag"]
 [ext_resource type="PackedScene" path="res://src/npc/NPC.tscn" id="13_npc"]
 [ext_resource type="PackedScene" path="res://src/laptop/Laptop.tscn" id="15_laptop"]
-[ext_resource type="Script" path="res://src/quests/QuestProgress.gd" id="16_quests"]
+[ext_resource type="Script" uid="uid://cv20e15iqxh8f" path="res://src/quests/QuestProgress.gd" id="16_quests"]
 [ext_resource type="PackedScene" path="res://src/stations/SnackStation.tscn" id="17_snack"]
 [ext_resource type="Script" uid="uid://bowdipl6eqcgb" path="res://src/zone/Zone.gd" id="18_zone"]
 [ext_resource type="PackedScene" path="res://src/npc/Moderator.tscn" id="19_mod"]
-[ext_resource type="Script" path="res://src/quests/QuestPanel.gd" id="21_quest_list"]
 [ext_resource type="Script" uid="uid://dwoqckpt7a08l" path="res://src/boss/BossDirector.gd" id="20_boss_dir"]
-[ext_resource type="Script" uid="uid://yw5p3lhd110c" path="res://src/boss/BossSpawn.gd" id="25_boss_spawn"]
+[ext_resource type="Script" uid="uid://wetis00kfsku" path="res://src/quests/QuestPanel.gd" id="21_quest_list"]
 [ext_resource type="Texture2D" uid="uid://ddc265a1j8igc" path="res://src/mod_2.png" id="22_mod2"]
 [ext_resource type="Texture2D" uid="uid://75p0n7r585vp" path="res://src/el-an.png" id="23_elan"]
 [ext_resource type="Texture2D" uid="uid://bcuv2qofaw0up" path="res://src/tile_map.png" id="24_objects"]
+[ext_resource type="Script" uid="uid://yw5p3lhd110c" path="res://src/boss/BossSpawn.gd" id="25_boss_spawn"]
 
 [ext_resource type="Script" uid="uid://cw3wqyjd0siru" path="res://src/quests/HideAndSeek.gd" id="26_hide_and_seek"]
 [ext_resource type="Texture2D" path="res://src/chel_1.png" id="27_participant"]
@@ -65,31 +65,40 @@ texture = ExtResource("24_objects")
 0:0/size_in_atlas = Vector2i(2, 3)
 0:0/0 = 0
 0:0/0/texture_origin = Vector2i(-8, -17)
-0:0/0/y_sort_origin = 38
+0:0/0/y_sort_origin = -3
 0:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 4.75, 17, 4.75, 17, 39, -1, 39)
 2:0/size_in_atlas = Vector2i(2, 3)
 2:0/0 = 0
 2:0/0/texture_origin = Vector2i(-8, -17)
-2:0/0/y_sort_origin = 38
+2:0/0/y_sort_origin = -2
 2:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 5.5, 17, 5.5, 17, 39, -1, 39)
 4:0/size_in_atlas = Vector2i(2, 3)
 4:0/0 = 0
 4:0/0/texture_origin = Vector2i(-8, -17)
-4:0/0/y_sort_origin = 38
+4:0/0/y_sort_origin = -2
 4:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 5.5, 17, 5.5, 17, 39, -1, 39)
 6:0/size_in_atlas = Vector2i(2, 2)
 6:0/0 = 0
 6:0/0/texture_origin = Vector2i(0, -15)
 6:0/0/y_sort_origin = 22
+8:0/0 = 0
+8:0/0/texture_origin = Vector2i(0, -4)
+8:0/0/y_sort_origin = 6
+9:0/0 = 0
+9:0/0/y_sort_origin = 6
+9:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-5, -8, 5, -8, 5, 7, -5, 7)
+10:0/0 = 0
+10:0/0/y_sort_origin = 6
+10:0/0/physics_layer_0/polygon_0/points = PackedVector2Array(-5, -8, 5, -8, 5, 7, -5, 7)
 8:1/0 = 0
 8:1/0/texture_origin = Vector2i(0, -8)
 8:1/0/y_sort_origin = 6
-9:0/0 = 0
-9:0/0/texture_origin = Vector2i(0, -1)
-9:0/0/y_sort_origin = 6
 9:1/0 = 0
 9:1/0/texture_origin = Vector2i(0, -1)
 9:1/0/y_sort_origin = 6
+10:1/0 = 0
+10:1/0/texture_origin = Vector2i(0, -1)
+10:1/0/y_sort_origin = 6
 11:0/size_in_atlas = Vector2i(2, 2)
 11:0/0 = 0
 11:0/0/texture_origin = Vector2i(-7, -11)
@@ -113,17 +122,17 @@ texture = ExtResource("24_objects")
 6:2/size_in_atlas = Vector2i(3, 2)
 6:2/0 = 0
 6:2/0/texture_origin = Vector2i(-16, -10)
-6:2/0/y_sort_origin = 22
+6:2/0/y_sort_origin = 2
 6:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3, 4.5, 34, 4.5, 34, 23, -3, 23)
 9:2/size_in_atlas = Vector2i(3, 2)
 9:2/0 = 0
 9:2/0/texture_origin = Vector2i(-16, -10)
-9:2/0/y_sort_origin = 22
+9:2/0/y_sort_origin = 1
 9:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3, 3.75, 34, 3.75, 34, 23, -3, 23)
 12:2/size_in_atlas = Vector2i(3, 2)
 12:2/0 = 0
 12:2/0/texture_origin = Vector2i(-16, -10)
-12:2/0/y_sort_origin = 22
+12:2/0/y_sort_origin = 2
 12:2/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3, 4.5, 34, 4.5, 34, 23, -3, 23)
 15:2/size_in_atlas = Vector2i(2, 2)
 15:2/0 = 0
@@ -138,38 +147,38 @@ texture = ExtResource("24_objects")
 0:4/size_in_atlas = Vector2i(2, 3)
 0:4/0 = 0
 0:4/0/texture_origin = Vector2i(-8, -17)
-0:4/0/y_sort_origin = 38
+0:4/0/y_sort_origin = -2
 0:4/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 5.5, 17, 5.5, 17, 39, -1, 39)
 2:4/size_in_atlas = Vector2i(2, 3)
 2:4/0 = 0
 2:4/0/texture_origin = Vector2i(-8, -17)
-2:4/0/y_sort_origin = 38
+2:4/0/y_sort_origin = -2
 2:4/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 5.5, 17, 5.5, 17, 39, -1, 39)
 4:3/size_in_atlas = Vector2i(2, 4)
 4:3/0 = 0
 4:3/0/texture_origin = Vector2i(-8, -25)
-4:3/0/y_sort_origin = 54
+4:3/0/y_sort_origin = 10
 4:3/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 18.5, 17, 18.5, 17, 55, -1, 55)
 6:4/size_in_atlas = Vector2i(3, 2)
 6:4/0 = 0
 6:4/0/texture_origin = Vector2i(-16, -10)
-6:4/0/y_sort_origin = 22
+6:4/0/y_sort_origin = 2
 6:4/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3, 4.5, 34, 4.5, 34, 23, -3, 23)
 9:4/size_in_atlas = Vector2i(3, 2)
 9:4/0 = 0
 9:4/0/texture_origin = Vector2i(-16, -10)
-9:4/0/y_sort_origin = 22
+9:4/0/y_sort_origin = 2
 9:4/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3, 4.5, 34, 4.5, 34, 23, -3, 23)
 12:4/size_in_atlas = Vector2i(3, 2)
 12:4/0 = 0
 12:4/0/texture_origin = Vector2i(-16, -10)
-12:4/0/y_sort_origin = 22
+12:4/0/y_sort_origin = -2
 12:4/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3, 1.5, 34, 1.5, 34, 23, -3, 23)
 15:4/size_in_atlas = Vector2i(2, 2)
 15:4/0 = 0
-15:4/0/texture_origin = Vector2i(0, -15)
+15:4/0/texture_origin = Vector2i(0, -13)
 15:4/0/y_sort_origin = 22
-15:4/0/physics_layer_0/polygon_0/points = PackedVector2Array(-6, 6.75, 5, 6.75, 5, 23, -6, 23)
+15:4/0/physics_layer_0/polygon_0/points = PackedVector2Array(-6, 5.25, 5, 5.25, 5, 23, -6, 23)
 17:4/size_in_atlas = Vector2i(2, 2)
 17:4/0 = 0
 17:4/0/texture_origin = Vector2i(0, -12)
@@ -185,6 +194,21 @@ texture = ExtResource("24_objects")
 3:7/0/texture_origin = Vector2i(-23, -19)
 3:7/0/y_sort_origin = 38
 3:7/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 9.25, 48, 9.25, 48, 39, -1, 39)
+7:8/size_in_atlas = Vector2i(3, 2)
+7:8/0 = 0
+7:8/0/texture_origin = Vector2i(-16, -10)
+7:8/0/y_sort_origin = 2
+7:8/0/physics_layer_0/polygon_0/points = PackedVector2Array(-3, 4.5, 34, 4.5, 34, 23, -3, 23)
+10:6/size_in_atlas = Vector2i(2, 3)
+10:6/0 = 0
+10:6/0/texture_origin = Vector2i(-4, -17)
+10:6/0/y_sort_origin = 38
+10:6/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 5.5, 16, 5.5, 16, 39, -1, 39)
+12:6/size_in_atlas = Vector2i(2, 3)
+12:6/0 = 0
+12:6/0/texture_origin = Vector2i(-11, -17)
+12:6/0/y_sort_origin = 38
+12:6/0/physics_layer_0/polygon_0/points = PackedVector2Array(-1, 5.5, 16, 5.5, 16, 39, -1, 39)
 
 [sub_resource type="TileSet" id="TileSet_objects"]
 physics_layer_0/collision_layer = 1
@@ -207,7 +231,7 @@ tile_set = SubResource("TileSet_office")
 
 [node name="Objects" type="TileMapLayer" parent="." unique_id=1938274651 groups=["grid_objects"]]
 y_sort_enabled = true
-tile_map_data = PackedByteArray("AAAHAAQAAAADAAcAAAAbANr/AAADAAcAAAAVAOD/AAAJAAAAAAATAOD/AAAIAAEAAAARAOH/AAAJAAEAAAAFAOH/AAAJAAEAAAAEANz/AAAJAAAAAAAFANz/AAAJAAAAAAAEAN3/AAAJAAAAAAAIAN3/AAAGAAAAAAAdAOP/AAAGAAAAAAAeAOP/AAAGAAAAAAAdAOX/AAAGAAAAAAAVAOj/AAAJAAEAAAAfAOT/AAAJAAEAAAAKAOj/AAAJAAEAAAAKAOb/AAAJAAAAAAALAOb/AAAJAAAAAAD6/+T/AAAAAAcAAAD9/+T/AAAAAAcAAAAZANv/AAANAAAAAAAeANv/AAANAAAAAAAdANv/AAARAAAAAAAFANv/AAARAAAAAAAEANv/AAANAAAAAAA=")
+tile_map_data = PackedByteArray("AAAbANr/AAADAAcAAAAVAOD/AAAKAAEAAAATAOD/AAAIAAEAAAARAOH/AAAJAAEAAAAFAOH/AAAJAAEAAAAEANz/AAAKAAEAAAAFANz/AAAKAAEAAAAEAN3/AAAKAAEAAAAIAN3/AAAGAAAAAAAdAOP/AAAGAAAAAAAeAOP/AAAGAAAAAAAdAOX/AAAGAAAAAAAVAOj/AAAJAAEAAAAfAOT/AAAJAAEAAAAKAOj/AAAJAAEAAAAKAOb/AAAKAAEAAAALAOb/AAAKAAEAAAD6/+T/AAAAAAcAAAD9/+T/AAAAAAcAAAAZANv/AAANAAAAAAAeANv/AAANAAAAAAAdANv/AAARAAAAAAAFANv/AAARAAAAAAAEANv/AAANAAAAAAAIAAYAAAADAAcAAAA=")
 tile_set = SubResource("TileSet_objects")
 
 [node name="Player1" parent="." unique_id=931995245 instance=ExtResource("3_fetco")]
@@ -365,7 +389,7 @@ boss_title = "Мешок-Мимик, Владыка Лаунжа"
 [node name="QuestProgress" type="CanvasLayer" parent="." unique_id=1847261190]
 script = ExtResource("16_quests")
 
-[node name="QuestPanel" type="CanvasLayer" parent="."]
+[node name="QuestPanel" type="CanvasLayer" parent="." unique_id=1727667007]
 script = ExtResource("21_quest_list")
 
 [node name="MobileControls" type="CanvasLayer" parent="." unique_id=420517391]

@@ -20,6 +20,11 @@ extends CharacterBody2D
 	Rect2(176, 0, 32, 32), Rect2(208, 0, 32, 32),   # синие
 	Rect2(240, 0, 32, 32), Rect2(272, 0, 32, 32),   # оранжевые
 ]
+## Какой вид из skins взять (-1 — случайный). Нужно, чтобы мешок выглядел
+## так же, как на макете уровня.
+@export var skin_index := -1
+## Иногда зеркалить картинку для разнообразия (только для случайного вида)
+@export var random_flip := true
 
 var _target_position: Vector2
 var _is_moving := false
@@ -38,10 +43,15 @@ func _ready() -> void:
 func _make_sprite() -> void:
 	var atlas := AtlasTexture.new()
 	atlas.atlas = sheet
-	atlas.region = skins.pick_random() if not skins.is_empty() else Rect2(176, 0, 32, 32)
+	if skins.is_empty():
+		atlas.region = Rect2(176, 0, 32, 32)
+	elif skin_index >= 0:
+		atlas.region = skins[skin_index % skins.size()]
+	else:
+		atlas.region = skins.pick_random()
 	_sprite = Sprite2D.new()
 	_sprite.texture = atlas
-	_sprite.flip_h = randf() < 0.5   # для разнообразия — иногда зеркально
+	_sprite.flip_h = random_flip and skin_index < 0 and randf() < 0.5   # иногда зеркально
 	var half_height := atlas.region.size.y / 2.0
 	_sprite.position = Vector2(0, Grid.tile_size(self).y / 2.0)
 	_sprite.offset = Vector2(0, -half_height)
