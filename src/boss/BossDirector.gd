@@ -92,6 +92,16 @@ func spawn_boss(at: BossSpawn = null) -> void:
 	_bar.show_boss(_spawn.boss_title, boss_hp)
 
 
+## Убрать текущего босса (если есть) без победы и сразу выпустить нового (админ-API).
+func restart_boss() -> void:
+	if is_instance_valid(_boss):
+		Quests.remove_quest(_quest_id)
+		_bar.hide_boss()
+		_boss.queue_free()
+		_end_event()
+	spawn_boss()
+
+
 func _on_defeated() -> void:
 	Quests.complete(_quest_id)
 	GameManager.unlock_achievement(&"boss_victory")

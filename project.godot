@@ -16,11 +16,13 @@ compatibility/default_parent_skeleton_in_mesh_instance_3d=true
 
 config/name="QuickAndSquick"
 run/main_scene="res://src/Main.tscn"
+run/flush_stdout_on_print=true
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="uid://c0yvif4h4sw0c"
 
 [autoload]
 
+Net="*res://src/net/Net.gd"
 GameManager="*res://src/autoload/GameManager.gd"
 Quests="*res://src/quests/Quests.tscn"
 PlayerProfile="*res://src/character/PlayerProfile.gd"

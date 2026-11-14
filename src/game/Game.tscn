@@ -20,6 +20,7 @@
 [ext_resource type="Script" uid="uid://yw5p3lhd110c" path="res://src/boss/BossSpawn.gd" id="25_boss_spawn"]
 
 [ext_resource type="Script" uid="uid://cw3wqyjd0siru" path="res://src/quests/HideAndSeek.gd" id="26_hide_and_seek"]
+[ext_resource type="Script" uid="uid://uo21b7uf14q0" path="res://src/net/world/NetWorld.gd" id="27_networld"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_office"]
 texture = ExtResource("2_office")
@@ -238,6 +239,17 @@ position = Vector2(176, 176)
 unique_name_in_owner = true
 visible = false
 position = Vector2(176, 240)
+
+[node name="NetWorld" type="Node2D" parent="."]
+y_sort_enabled = true
+script = ExtResource("27_networld")
+
+[node name="Players" type="Node2D" parent="NetWorld"]
+y_sort_enabled = true
+
+[node name="PlayerSpawner" type="MultiplayerSpawner" parent="NetWorld"]
+_spawnable_scenes = PackedStringArray("res://src/player/Player.tscn")
+spawn_path = NodePath("../Players")
 
 [node name="BeanBag2" parent="." unique_id=1315820771 instance=ExtResource("12_bag")]
 position = Vector2(143, -49)

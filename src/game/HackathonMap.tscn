@@ -29,6 +29,7 @@
 [ext_resource type="Texture2D" uid="uid://djxhv2lk8sjvb" path="res://src/mod_2_sleep.png" id="28_zombie2_sleep"]
 [ext_resource type="Script" uid="uid://cbwkqxvqv8544" path="res://src/sokoban/ZombieUprising.gd" id="29_uprising"]
 [ext_resource type="Script" uid="uid://fwkceyskec0k" path="res://src/game/ScreenCaption.gd" id="30_caption"]
+[ext_resource type="Script" uid="uid://uo21b7uf14q0" path="res://src/net/world/NetWorld.gd" id="30_networld"]
 
 [sub_resource type="TileSetAtlasSource" id="Atlas_floor"]
 texture = ExtResource("2_floor")
@@ -262,6 +263,17 @@ position = Vector2(885, 501)
 unique_name_in_owner = true
 visible = false
 position = Vector2(752, 112)
+
+[node name="NetWorld" type="Node2D" parent="."]
+y_sort_enabled = true
+script = ExtResource("30_networld")
+
+[node name="Players" type="Node2D" parent="NetWorld"]
+y_sort_enabled = true
+
+[node name="PlayerSpawner" type="MultiplayerSpawner" parent="NetWorld"]
+_spawnable_scenes = PackedStringArray("res://src/player/Player.tscn")
+spawn_path = NodePath("../Players")
 
 [node name="NPC" parent="." unique_id=1284228307 instance=ExtResource("6_npc")]
 position = Vector2(936, 315)

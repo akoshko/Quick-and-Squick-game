@@ -58,6 +58,33 @@ var _restore_frame := 0
 ## отсюда, в какую сторону их толкают.
 var facing := Vector2i.DOWN
 
+## Во сколько раз крупнее подпись «Игрок N» в экранном виде (проектор, вся карта)
+const SCREEN_LABEL_SCALE := 2.5
+
+## Сеть. На сервере персонажем управляет ввод игрока (RPC NetWorld.submit_input),
+## а не клавиатура. На клиентах позиция приходит синхронизатором.
+var network_controlled := false
+var remote_dir := Vector2i.ZERO
+var remote_action := false
+## Номер игрока для подписи «Игрок N» (реплицируется)
+@export var player_number := 0:
+	set(value):
+		player_number = value
+		_update_label()
+## Игрок отключился, персонаж ждёт его возвращения (реплицируется)
+@export var held := false:
+	set(value):
+		held = value
+		modulate.a = 0.5 if held else 1.0
+
+var _remote_action_prev := false
+var _net_view := false          # клиент: только рисуем реплицированную позицию
+var _net_last_pos := Vector2.ZERO
+var _net_lag := Vector2.ZERO    # визуальное отставание спрайта (сглаживание тиков)
+var _net_still := 0.0
+var _sprite_offset: Vector2
+var _label_base: Vector2
+
 var _hint: InteractHint   # подсказка «нажми E» над ближайшим предметом (только у своего)
 var _nameplate: Label     # ник над головой
 var _emote_bubble: EmoteBubble   # облачко эмоции (пока живо — новую не показать)
@@ -65,6 +92,7 @@ var _emote := -1                 # какая эмоция сейчас над �
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
+@onready var _label: Label = $Label
 
 
 func _ready() -> void:
@@ -76,6 +104,30 @@ func _ready() -> void:
 	_target_position = global_position
 	_start_position = global_position
 	_sprite_base = _sprite.position
+	_sprite_offset = _sprite.offset
+	_label_base = _label.position
+	if Net.is_screen():
+		# проектор показывает всю карту мелко: подпись крупнее, растёт вверх от низа по центру
+		_label.pivot_offset = Vector2(_label.size.x * 0.5, _label.size.y)
+		_label.scale = Vector2.ONE * SCREEN_LABEL_SCALE
+	_update_label()
+
+	if Net.is_network():
+		# В сети «свой» — только персонаж этого клиента; на сервере своих нет
+		# (там персонажей ведёт ввод игроков: network_controlled)
+		is_local = Net.client != null and name == Net.client.player_id
+
+	# Клиент: персонажей двигает сервер, здесь только анимация по позиции
+	if Net.is_network() and not Net.is_server():
+		_net_view = true
+		_net_last_pos = position
+		set_physics_process(false)
+		if is_local:
+			# Эмоции в сети пока локальные: облачко видно только на этом клиенте
+			var bar := EmoteBar.new()
+			bar.player = self
+			add_child(bar)
+		return
 
 	# Скрытый игрок (например, Player2 в одиночной игре) не должен
 	# ни ходить от тех же кнопок, ни быть невидимой стеной
@@ -154,7 +206,7 @@ func _physics_process(delta: float) -> void:
 
 	# Сетевого игрока клавиатура не двигает — его позицию задаёт сетевой код
 	# (например, через move_to()), а мы только доводим его до цели выше.
-	if not is_local:
+	if not is_local and not network_controlled:
 		return
 
 	# 2. Если стоим — читаем кнопки и пробуем шагнуть.
@@ -162,7 +214,8 @@ func _physics_process(delta: float) -> void:
 	# не разгонит персонажа, а при удержании он идёт без остановок.
 	if not _is_moving:
 		var direction := _read_direction()
-		if Input.is_action_just_pressed("action"):
+		if _action_just_pressed() and not network_controlled:
+			# В сети действие пока ничего не делает (спецификация §6.4)
 			_interact()
 		if _restore_frame == 0 and direction != Vector2i.ZERO:
 			_try_step(direction)
@@ -177,9 +230,19 @@ func _physics_process(delta: float) -> void:
 # 8 направлений: каждая ось отдельно, встречные кнопки гасят друг друга.
 # Например (1, -1) — вправо-вверх.
 func _read_direction() -> Vector2i:
+	if network_controlled:
+		return remote_dir
 	var x := int(Input.is_action_pressed("move_right")) - int(Input.is_action_pressed("move_left"))
 	var y := int(Input.is_action_pressed("move_down")) - int(Input.is_action_pressed("move_up"))
 	return Vector2i(x, y)
+
+
+func _action_just_pressed() -> bool:
+	if not network_controlled:
+		return Input.is_action_just_pressed("action")
+	var pressed := remote_action and not _remote_action_prev
+	_remote_action_prev = remote_action
+	return pressed
 
 
 func _try_step(direction: Vector2i) -> void:
@@ -414,6 +477,9 @@ func _dir_to(target: Node2D) -> Vector2i:
 
 ## Мгновенно переставить игрока (например, босс отбросил при появлении)
 func displace_to(world_pos: Vector2) -> void:
+	# В сети сервер отбрасывание выключено (§6.4), а на клиенте позицию задаёт сервер
+	if Net.is_network():
+		return
 	global_position = world_pos
 	_target_position = world_pos
 	_is_moving = false
@@ -523,6 +589,8 @@ func _play_step_animation() -> void:
 # Анимация покоя: лёгкое «дыхание» — плавно оседает и расширяется от пола
 # и возвращается. Пока идём (или доигрывает анимация шага) — выключена.
 func _process(delta: float) -> void:
+	if _net_view:
+		_follow_replicated_position(delta)
 	if _is_moving or (_step_tween and _step_tween.is_running()):
 		_idle_time = 0.0
 		return
@@ -530,3 +598,51 @@ func _process(delta: float) -> void:
 	# (1 - cos) / 2 плавно идёт 0 → 1 → 0, начиная с нуля — без рывка после шага
 	var squeeze := idle_squash * (1.0 - cos(_idle_time)) / 2.0
 	_sprite.scale = Vector2(1.0 + squeeze * 0.6, 1.0 - squeeze)
+
+
+# Клиент: позиция приходит тиками (20 Гц). Спрайт и подпись отстают
+# от узла на пройденный за тик путь и догоняют его с обычной скоростью,
+# поэтому движение плавное; анимация шага — как при локальной ходьбе.
+func _follow_replicated_position(delta: float) -> void:
+	var moved := position - _net_last_pos
+	_net_last_pos = position
+	var tile := Grid.tile_size(self).x
+	if moved != Vector2.ZERO:
+		_net_still = 0.0
+		if moved.length() > tile * 2.0:   # телепорт (спавн, перезапуск) — без сглаживания
+			_net_lag = Vector2.ZERO
+			_walk_distance = -1.0
+		else:
+			_net_lag = (_net_lag - moved).limit_length(tile)
+			if moved.x != 0.0:
+				_sprite.flip_h = (moved.x < 0.0) != sprite_faces_left
+			if _walk_distance < 0.0 or _walk_distance >= tile:
+				_walk_distance = 0.0
+				_play_step_animation()
+			_walk_distance += moved.length()
+	else:
+		_net_still += delta
+		if _net_still > 0.2:
+			_walk_distance = -1.0
+	_net_lag = _net_lag.move_toward(Vector2.ZERO, move_speed * 1.25 * delta)
+	_sprite.offset = _sprite_offset + _net_lag
+	_label.position = _label_base + _net_lag
+	_is_moving = _net_lag != Vector2.ZERO
+
+
+## Имя игрока: единственный источник для подписи и админки (позже сюда придёт выбор имени).
+func display_name() -> String:
+	return "Игрок %d" % player_number
+
+
+## Идентификатор текущего скина: базовое имя файла текстуры спрайта (например "chel_1").
+func skin_id() -> String:
+	var tex: Texture2D = _sprite.texture if _sprite != null else null
+	return tex.resource_path.get_file().get_basename() if tex != null else ""
+
+
+func _update_label() -> void:
+	if _label == null:
+		return
+	_label.visible = player_number > 0
+	_label.text = display_name()

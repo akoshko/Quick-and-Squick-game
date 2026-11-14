@@ -32,4 +32,9 @@ func _look_good() -> void:
 
 
 func _run_scene() -> void:
+	# В сети (сервер, телефон, проектор) — сразу карта: внешность и ник из создания
+	# персонажа по сети пока не передаются, там подпись «Игрок N» (§6.4)
+	if Net.is_network():
+		get_tree().change_scene_to_file("res://src/game/HackathonMap.tscn")
+		return
 	get_tree().change_scene_to_file("res://src/character/CharacterCreator.tscn")

@@ -19,3 +19,7 @@ deploy/
 *.old
 
 App.g.puml
+
+checks/
+
+src/net/version.txt
