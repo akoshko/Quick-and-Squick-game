@@ -9,6 +9,8 @@ addons/*
 !.godot/extension_list.cfg
 bin/
 obj/
+build/
+deploy/
 .generated/
 .vs/
 .DS_Store
