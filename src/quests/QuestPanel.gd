@@ -122,7 +122,7 @@ func _refresh(_value: Variant = null) -> void:
 				item.set_custom_color(0, GOLD)
 			item.set_autowrap_mode(0, TextServer.AUTOWRAP_WORD_SMART)
 			item.set_metadata(0, quest.id)
-			item.set_selectable(0, not Quests.all_done())
+			item.set_selectable(0, not quest.done)
 			for step in quest.steps:
 				var row := _list.create_item(item)
 				row.set_text(0, step.title)

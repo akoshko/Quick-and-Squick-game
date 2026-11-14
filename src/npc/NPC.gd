@@ -1,6 +1,8 @@
 class_name NPC
 extends StaticBody2D
 
+signal dialogue_finished
+
 ## Прототип NPC: стоит в клетке, по «действию» показывает облачко с репликой
 ## поверх всего. Каждое нажатие — следующая реплика, после последней облачко
 ## закрывается. Если игрок отходит, облачко закрывается само.
@@ -11,13 +13,9 @@ extends StaticBody2D
 @export var npc_name := "Коллега"
 ## Задание, которое выполняется, когда игрок дослушал все реплики (пусто — никакое)
 @export var quest_id := "talk_npc"
-## После завершения этого квеста NPC только здоровается.
-@export var greeting_after_quest_id := ""
-@export var lines: PackedStringArray = [
-	"Привет! Ты новенький?",
-	"Говорят, в лаундже стоят очень мягкие кресла-мешки...",
-	"Попробуй подвинуть один, только никому не говори!",
-]
+## Если задано, диалог доступен только пока этот квест выполняется.
+@export var dialogue_quest_id := ""
+@export var lines: PackedStringArray = ["Привет!"]
 ## Спрайт NPC (ноги — внизу картинки). Если не задан — человечек рисуется
 ## кодом цветами shirt_color / hair_color.
 @export var sprite_texture: Texture2D
@@ -66,7 +64,8 @@ func _ready() -> void:
 
 func interact(player: Player) -> void:
 	_talking_to = player
-	if not greeting_after_quest_id.is_empty() and Quests.is_done(greeting_after_quest_id):
+	var dialogue_quest := Quests.find(dialogue_quest_id) if not dialogue_quest_id.is_empty() else null
+	if not dialogue_quest_id.is_empty() and (dialogue_quest == null or dialogue_quest.done):
 		if _bubble.visible and _line_index == -1:
 			_close()
 		else:
@@ -79,8 +78,14 @@ func interact(player: Player) -> void:
 		if quest_id != "":
 			Quests.complete(quest_id)
 		_close()
+		dialogue_finished.emit()
 		return
 	_show_line(lines[_line_index])
+
+
+func set_dialogue(new_lines: PackedStringArray) -> void:
+	_close()
+	lines = new_lines
 
 
 func _process(delta: float) -> void:

@@ -22,6 +22,9 @@
 [ext_resource type="Texture2D" uid="uid://75p0n7r585vp" path="res://src/el-an.png" id="23_elan"]
 [ext_resource type="Texture2D" uid="uid://bcuv2qofaw0up" path="res://src/tile_map.png" id="24_objects"]
 
+[ext_resource type="Script" uid="uid://cw3wqyjd0siru" path="res://src/quests/HideAndSeek.gd" id="26_hide_and_seek"]
+[ext_resource type="Texture2D" path="res://src/chel_1.png" id="27_participant"]
+
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_office"]
 texture = ExtResource("2_office")
 texture_region_size = Vector2i(32, 32)
@@ -224,8 +227,9 @@ position = Vector2(106, -118)
 
 [node name="NPC" parent="." unique_id=1093384521 instance=ExtResource("13_npc")]
 position = Vector2(400, 124)
-greeting_after_quest_id = "main"
+dialogue_quest_id = "main"
 npc_name = "Елена Анатольевна"
+lines = PackedStringArray("Привет! Ты новенький?", "Говорят, в лаундже стоят очень мягкие кресла-мешки...", "Попробуй подвинуть один, только никому не говори!")
 sprite_texture = ExtResource("23_elan")
 
 [node name="ZoneHackathon" type="Node2D" parent="." unique_id=1473158606]
@@ -301,24 +305,34 @@ position = Vector2(128, -67)
 [node name="ModeratorHackathon1" parent="." unique_id=967536308 node_paths=PackedStringArray("zone") instance=ExtResource("19_mod")]
 position = Vector2(240, -432)
 zone = NodePath("../ZoneHackathon")
-lines = ["Привет! Ты новенький?", "Говорят, в лаундже стоят очень мягкие кресла-мешки...", "Попробуй подвинуть один, только никому не говори!"]
 
 [node name="ModeratorHackathon2" parent="." unique_id=917660058 node_paths=PackedStringArray("zone") instance=ExtResource("19_mod")]
 position = Vector2(400, -304)
 zone = NodePath("../ZoneHackathon")
-lines = ["Привет! Ты новенький?", "Говорят, в лаундже стоят очень мягкие кресла-мешки...", "Попробуй подвинуть один, только никому не говори!"]
 sprite_texture = ExtResource("22_mod2")
 
 [node name="ModeratorSnack1" parent="." unique_id=301209005 node_paths=PackedStringArray("zone") instance=ExtResource("19_mod")]
 position = Vector2(16, 208)
 zone = NodePath("../ZoneSnack")
-lines = ["Привет! Ты новенький?", "Говорят, в лаундже стоят очень мягкие кресла-мешки...", "Попробуй подвинуть один, только никому не говори!"]
 
 [node name="ModeratorSnack2" parent="." unique_id=529658751 node_paths=PackedStringArray("zone") instance=ExtResource("19_mod")]
 position = Vector2(400, 208)
 zone = NodePath("../ZoneSnack")
-lines = ["Привет! Ты новенький?", "Говорят, в лаундже стоят очень мягкие кресла-мешки...", "Попробуй подвинуть один, только никому не говори!"]
 sprite_texture = ExtResource("22_mod2")
+
+[node name="HideAndSeek" type="Node2D" parent="." node_paths=PackedStringArray("moderator")]
+position = Vector2(-80, -401)
+script = ExtResource("26_hide_and_seek")
+moderator = NodePath("../ModeratorSnack1")
+
+[node name="Participant" parent="HideAndSeek" instance=ExtResource("13_npc")]
+visible = false
+collision_layer = 0
+collision_mask = 0
+npc_name = "Участник"
+quest_id = ""
+lines = PackedStringArray("Доброе утро")
+sprite_texture = ExtResource("27_participant")
 
 [node name="BossDirector" type="Node" parent="." unique_id=1109512131]
 script = ExtResource("20_boss_dir")

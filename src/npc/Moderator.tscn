@@ -12,7 +12,6 @@ script = ExtResource("1_mod")
 npc_name = "Модератор"
 quest_id = ""
 sprite_texture = ExtResource("2_mod1")
-lines = PackedStringArray("Привет! Я модератор хакатона.", "Кончилось печенье или завис ноутбук? Не переживай — через пять секунд приду и всё поправлю!")
 shirt_color = Color(0.95, 0.55, 0.15, 1)
 hair_color = Color(0.12, 0.1, 0.1, 1)
 

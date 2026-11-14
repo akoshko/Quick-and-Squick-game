@@ -51,13 +51,14 @@ func reset() -> void:
 
 ## Добавить временное задание по ходу игры (например, «Победить босса»).
 ## make_current — сразу сделать его текущим квестом (виден на экране).
-func add_quest(id: String, title: String, make_current := true) -> Quest:
+func add_quest(id: String, title: String, make_current := true, steps: Array[Quest] = []) -> Quest:
 	var existing := find(id)
 	if existing:
 		return existing
 	var quest := Quest.new()
 	quest.id = id
 	quest.title = title
+	quest.steps = steps
 	quest.temporary = true
 	quests.append(quest)
 	changed.emit()
@@ -132,9 +133,7 @@ func is_done(id: String) -> bool:
 
 
 func select_quest(id: String) -> void:
-	if all_done():
-		return
-	if not quests.any(func(quest: Quest) -> bool: return quest.id == id) or selected_quest_id == id:
+	if selected_quest_id == id or not quests.any(func(quest: Quest) -> bool: return quest.id == id and not quest.done):
 		return
 	selected_quest_id = id
 	selected_quest_changed.emit(id)
