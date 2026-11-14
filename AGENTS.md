@@ -24,6 +24,10 @@ Run the game in Godot after gameplay changes. For UI or asset changes, inspect t
 
 When restoring solid objects during gameplay, test with the player both inside the restored area and mid-step at its edge. Verify that the player can exit and resume normal movement.
 
+When changing default NPC dialogue, check scene overrides and verify dialogue that depends on quest state.
+
+When changing where an NPC appears or its draw order, run the scene in a Godot window with the player nearby. Visually verify that the NPC appears in the intended spot and that the sprites overlap in the intended order.
+
 ## Commits and Pull Requests
 
 Recent commits use short, imperative summaries (for example, “Improve quest icon sizes in portrait mode”). Include only changes for the current task. If a file contains unrelated edits, stage only the relevant lines or hunks—for example, in `project.godot`. Pull requests should summarize the change, note how it was checked, link related issues when available, and include screenshots for visual changes.
