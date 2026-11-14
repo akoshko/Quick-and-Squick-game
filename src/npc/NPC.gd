@@ -18,14 +18,26 @@ extends StaticBody2D
 	"Говорят, в лаундже стоят очень мягкие кресла-мешки...",
 	"Попробуй подвинуть один, только никому не говори!",
 ]
+## Спрайт NPC (ноги — внизу картинки). Если не задан — человечек рисуется
+## кодом цветами shirt_color / hair_color.
+@export var sprite_texture: Texture2D
+## Куда смотрит персонаж на картинке (для поворота при ходьбе)
+@export var sprite_faces_left := true
 @export var shirt_color := Color(0.35, 0.55, 0.85)
 @export var hair_color := Color(0.3, 0.2, 0.15)
 @export var bubble_width := 96.0   # ширина текста в облачке (пиксели мира)
+
+@export_group("Анимация покоя")
+@export var idle_squash := 0.05   # насколько «оседает» в покое (0 — без анимации)
+@export var idle_speed := 2.4     # скорость «дыхания»
+@export_group("")
 
 const FONT_SIZE := 8          # в пикселях мира; камера сама увеличит
 const BUBBLE_Z := 100         # выше всего на уровне
 const HEAD_TOP := -20.0       # где у NPC макушка — над ней висит облачко
 const TAIL_HEIGHT := 5.0
+const FEET := Vector2(0, 12)  # точка у ног: от неё сжимается фигурка (рисунок кодом)
+const SPRITE_FEET := Vector2(0, 16)   # у спрайта ноги — на нижнем краю клетки
 const BUBBLE_BG := Color(1, 1, 1, 0.96)
 const BUBBLE_BORDER := Color(0.15, 0.15, 0.2)
 
@@ -34,12 +46,22 @@ var _talking_to: Player
 var _bubble: Node2D
 var _panel: PanelContainer
 var _label: Label
+var _idle_time := 0.0
+var _draw_offset := Vector2.ZERO   # доп. сдвиг рисунка (например, покачивание модератора)
+var _sprite: Sprite2D               # есть, если задан sprite_texture
 
 
 func _ready() -> void:
 	add_to_group("interactable")
 	Grid.snap(self)
+	if sprite_texture:
+		_sprite = Sprite2D.new()
+		_sprite.texture = sprite_texture
+		_sprite.position = SPRITE_FEET
+		_sprite.offset = Vector2(0, -sprite_texture.get_height() / 2.0)   # точка спрайта — в ногах
+		add_child(_sprite)
 	_build_bubble()
+	_idle_time = randf() * TAU   # случайная фаза — NPC «дышат» не синхронно
 
 
 func interact(player: Player) -> void:
@@ -61,7 +83,16 @@ func interact(player: Player) -> void:
 	_show_line(lines[_line_index])
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
+	# Анимация покоя: спрайт сжимаем напрямую, рисунок кодом — перерисовываем
+	if not _idle_paused():
+		_idle_time += delta * idle_speed
+	if _sprite:
+		_sprite.scale = _body_scale()
+		_sprite.position = SPRITE_FEET + _draw_offset
+	else:
+		queue_redraw()
+
 	# Игрок отошёл дальше соседней клетки — закрываем разговор
 	if not _bubble.visible or not is_instance_valid(_talking_to):
 		return
@@ -152,6 +183,12 @@ func _build_bubble() -> void:
 # Рисуем человечка кодом, пока нет спрайта. Когда появится картинка —
 # добавь в сцену Sprite2D и удали эту функцию.
 func _draw() -> void:
+	if _sprite:
+		return   # NPC со спрайтом рисовать кодом не нужно
+	# Сжимаемся от ног
+	var body_scale := _body_scale()
+	draw_set_transform(FEET * (Vector2.ONE - body_scale) + _draw_offset, 0.0, body_scale)
+
 	var skin := Color(0.96, 0.8, 0.66)
 	var pants := Color(0.22, 0.24, 0.32)
 	var dark := Color(0.12, 0.1, 0.12)
@@ -169,6 +206,33 @@ func _draw() -> void:
 	draw_rect(Rect2(-6, -17, 12, 4), hair_color)                           # чёлка
 	draw_rect(Rect2(-3, -11, 1.5, 2), dark)                                # глаза
 	draw_rect(Rect2(1.5, -11, 1.5, 2), dark)
+
+
+## Мгновенно переставить NPC (например, босс отбросил при появлении)
+func displace_to(world_pos: Vector2) -> void:
+	global_position = world_pos
+
+
+## Пока над NPC облачко с репликой, подсказку «нажми E» не показываем
+func hides_interact_hint() -> bool:
+	return _bubble.visible
+
+
+# «Дыхание»: (1 - cos) / 2 плавно идёт 0 → 1 → 0
+func _body_scale() -> Vector2:
+	var squeeze := 0.0 if _idle_paused() else idle_squash * (1.0 - cos(_idle_time)) / 2.0
+	return Vector2(1.0 + squeeze * 0.6, 1.0 - squeeze)
+
+
+## Повернуть спрайт по направлению движения по горизонтали
+func face_horizontal(dir_x: float) -> void:
+	if _sprite and dir_x != 0.0:
+		_sprite.flip_h = (dir_x < 0.0) != sprite_faces_left
+
+
+## Наследник может поставить «дыхание» на паузу (например, пока идёт)
+func _idle_paused() -> bool:
+	return false
 
 
 func _draw_ellipse(center: Vector2, radius: Vector2, fill: Color) -> void:

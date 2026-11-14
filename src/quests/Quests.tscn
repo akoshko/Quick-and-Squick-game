@@ -6,7 +6,7 @@
 [sub_resource type="Resource" id="Quest_talk"]
 script = ExtResource("2_quest")
 id = "talk_npc"
-title = "Поговорить с коллегой"
+title = "Поговорить с Еленой Анатольевной"
 
 [sub_resource type="Resource" id="Quest_cookie"]
 script = ExtResource("2_quest")

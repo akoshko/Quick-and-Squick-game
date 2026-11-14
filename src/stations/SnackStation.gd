@@ -1,7 +1,7 @@
 class_name SnackStation
 extends ResourceStation
 
-## Тарелка с печеньем или миска с яблоками. По «действию» игрок съедает
+## Миска с печеньем или миска с яблоками. По «действию» игрок съедает
 ## одну порцию и выполняет задание «Перекусить». Когда порции кончились —
 ## через 5 секунд модератор приносит ещё.
 
@@ -29,6 +29,9 @@ func _ready() -> void:
 
 
 func interact(_player: Player) -> void:
+	if is_knocked:
+		FloatingText.spawn(self, global_position + Vector2(0, -12), "Всё рассыпано!", Color(1, 0.6, 0.5))
+		return
 	if is_empty:
 		FloatingText.spawn(self, global_position + Vector2(0, -12), "Пусто…", Color(0.8, 0.82, 0.88))
 		return
@@ -61,10 +64,13 @@ func _set_pop(value: Vector2) -> void:
 
 # Рисуем кодом, пока нет спрайта
 func _draw() -> void:
+	if is_knocked:
+		_draw_knocked()
+		return
 	draw_set_transform(Vector2(0, 6) * (Vector2.ONE - _pop), 0.0, _pop)
 	if kind == Kind.COOKIE:
-		_ellipse(Vector2(0, 3), Vector2(11, 5), Color(0.94, 0.95, 0.97))     # тарелка
-		_ellipse(Vector2(0, 3), Vector2(8, 3.5), Color(0.84, 0.87, 0.9))
+		_ellipse(Vector2(0, 4), Vector2(11, 5), Color(0.62, 0.74, 0.86))     # керамическая миска
+		_ellipse(Vector2(0, 2.5), Vector2(9.5, 3.5), Color(0.9, 0.93, 0.96)) # светлое дно
 		for i in mini(_left, COOKIE_SPOTS.size()):
 			_draw_cookie(COOKIE_SPOTS[i])
 	else:
@@ -72,6 +78,22 @@ func _draw() -> void:
 		_ellipse(Vector2(0, 2.5), Vector2(9.5, 3.5), Color(0.4, 0.25, 0.15))
 		for i in mini(_left, APPLE_SPOTS.size()):
 			_draw_apple(APPLE_SPOTS[i])
+
+
+# Босс опрокинул: миска на боку, содержимое рассыпано по столу
+func _draw_knocked() -> void:
+	var bowl := Color(0.62, 0.74, 0.86) if kind == Kind.COOKIE else Color(0.55, 0.36, 0.22)
+	draw_set_transform(Vector2(-4, 2), deg_to_rad(-70.0), Vector2.ONE)
+	_ellipse(Vector2.ZERO, Vector2(8, 4), bowl)
+	_ellipse(Vector2(0, -1), Vector2(6.5, 2.5), bowl.darkened(0.3))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if kind == Kind.COOKIE:
+		_draw_cookie(Vector2(6, 4))
+		for crumb: Vector2 in [Vector2(2, 7), Vector2(9, 0), Vector2(-1, 8), Vector2(10, 6)]:
+			draw_rect(Rect2(crumb, Vector2(1.5, 1.5)), Color(0.75, 0.52, 0.27))
+	else:
+		_draw_apple(Vector2(6, 3))
+		_draw_apple(Vector2(10, 8))
 
 
 func _draw_cookie(at: Vector2) -> void:
