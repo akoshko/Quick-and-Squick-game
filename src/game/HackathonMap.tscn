@@ -387,7 +387,7 @@ zone = NodePath("../ZoneSnack")
 sprite_texture = ExtResource("13_mod2")
 
 [node name="HideAndSeek" type="Node2D" parent="." unique_id=1756190823 node_paths=PackedStringArray("moderator")]
-position = Vector2(1328, 528)
+position = Vector2(1008, 367)
 script = ExtResource("20_hide_and_seek")
 moderator = NodePath("../ModeratorSnack1")
 
@@ -397,6 +397,7 @@ collision_layer = 0
 collision_mask = 0
 npc_name = "Участник"
 quest_id = ""
+lines = PackedStringArray("Доброе утро")
 sprite_texture = ExtResource("21_participant")
 
 [node name="BossDirector" type="Node" parent="." unique_id=745247602]
