@@ -26,6 +26,10 @@ const CORNER_NUDGE_STEPS := 2  # на сколько подшагов «дово
 @export_group("Анимация шага")
 @export var squash := 0.28      # насколько сплющивается (0 — без анимации)
 @export var hop_height := 4.0   # на сколько пикселей подпрыгивает
+
+@export_group("Анимация покоя")
+@export var idle_squash := 0.05   # насколько «оседает» в покое (0 — без анимации)
+@export var idle_speed := 2.4     # скорость «дыхания»
 #@export var max_hp: int = 3
 
 #var hp: int
@@ -40,10 +44,15 @@ var _sprite_base: Vector2   # где спрайт стоит в покое (в �
 var _target_position: Vector2   # куда сейчас едем (в пикселях)
 var _is_moving := false         # «занят» ли персонаж (едет на подшаг)
 var _walk_distance := -1.0      # путь с прошлой анимации шага (-1 — стояли)
+var _idle_time := 0.0           # фаза «дыхания» в покое
+var _restored_tiles := Rect2i()
+var _restore_frame := 0
 
 ## Куда смотрит игрок. Нужен для взаимодействия: предметы узнают
 ## отсюда, в какую сторону их толкают.
 var facing := Vector2i.DOWN
+
+var _hint: InteractHint   # подсказка «нажми E» над ближайшим предметом
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
@@ -68,6 +77,10 @@ func _ready() -> void:
 	if not visible:
 		_collision_shape.disabled = true
 		set_physics_process(false)
+		return
+
+	_hint = InteractHint.new()
+	add_child(_hint)
 
 
 func _physics_process(delta: float) -> void:
@@ -75,6 +88,15 @@ func _physics_process(delta: float) -> void:
 		#return
 	if GameManager.state == GameManager.GameState.PAUSED:
 		return
+
+	if _restore_frame != 0:
+		if Engine.get_physics_frames() < _restore_frame:
+			return
+		if (not _escape_overlap() and _is_moving
+				and test_move(global_transform, _target_position - global_position)):
+			_is_moving = false
+		_restore_frame = 0
+		_restored_tiles = Rect2i()
 
 	# 1. Если едем — плавно приближаемся к цели
 	if _is_moving:
@@ -85,16 +107,18 @@ func _physics_process(delta: float) -> void:
 	# 2. Если стоим — читаем кнопки и пробуем шагнуть.
 	# Кнопки читаются только когда стоим, поэтому is_action_pressed
 	# не разгонит персонажа, а при удержании он идёт без остановок.
-	if not _is_moving and Input.is_action_just_pressed("action"):
-		_interact()
-
 	if not _is_moving:
 		var direction := _read_direction()
-		if direction != Vector2i.ZERO:
+		if Input.is_action_just_pressed("action"):
+			_interact()
+		if _restore_frame == 0 and direction != Vector2i.ZERO:
 			_try_step(direction)
-		else:
+			if not _is_moving:
+				_escape_overlap(direction)
+		elif direction == Vector2i.ZERO:
 			_walk_distance = -1.0   # остановились — следующий шаг начнётся с анимации
 
+	_update_hint()
 	_tick_iframes(delta)
 
 
@@ -166,6 +190,71 @@ func _substep() -> float:
 	return Grid.tile_size(self).x / SUBSTEPS
 
 
+func check_restored_tiles(tiles: Rect2i) -> void:
+	if not tiles.grow(1).has_point(Grid.world_to_cell(self, global_position)):
+		return
+	_restored_tiles = tiles
+	# TileMapLayer и станции обновляют коллизии отложенно.
+	_restore_frame = Engine.get_physics_frames() + 1
+
+
+func _escape_overlap(direction := Vector2i.ZERO) -> bool:
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = _collision_shape.shape
+	query.transform = _collision_shape.global_transform
+	query.collision_mask = collision_mask
+	var space := get_world_2d().direct_space_state
+	var overlaps := space.intersect_shape(query)
+	if overlaps.is_empty():
+		return false
+	var starting_bodies := {}
+	for hit in overlaps:
+		starting_bodies[hit.rid] = true
+
+	var origin := query.transform
+	var layer := Grid.get_layer(self)
+	var step := _substep()
+	var cell_center := Grid.cell_to_world(self, Grid.world_to_cell(self, global_position))
+	var aligned := cell_center + (global_position - cell_center).snapped(Vector2.ONE * step)
+	var directions: Array[Vector2i] = [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]
+	if direction != Vector2i.ZERO:
+		directions.erase(direction)
+		directions.push_front(direction)
+	var max_steps := (maxi(1, maxi(_restored_tiles.size.x, _restored_tiles.size.y)) + 1) * SUBSTEPS
+	var closest_target := global_position
+	var closest_distance := INF
+	for dir in directions:
+		for n in range(1, max_steps + 1):
+			var target := aligned + Vector2(dir) * step * n
+			var shifted := origin
+			shifted.origin += target - global_position
+			query.transform = shifted
+			overlaps = space.intersect_shape(query)
+			if overlaps.is_empty():
+				var distance := global_position.distance_squared_to(target)
+				if distance < closest_distance:
+					closest_distance = distance
+					closest_target = target
+				break
+			# Можно выйти через восстановленный предмет, но не через соседнюю стену.
+			if overlaps.any(func(hit: Dictionary) -> bool:
+				if starting_bodies.has(hit.rid):
+					return false
+				if hit.collider == layer:
+					return not _restored_tiles.has_point(layer.get_coords_for_body_rid(hit.rid))
+				if hit.collider is ResourceStation:
+					return not _restored_tiles.has_point(Grid.world_to_cell(self, hit.collider.global_position))
+				return true):
+				break
+		if direction != Vector2i.ZERO and closest_distance < INF:
+			break
+	if closest_distance == INF:
+		return false
+	_walk_distance = -1.0
+	_start_substep(closest_target)
+	return true
+
+
 # Ищем свободный путь вперёд, сдвинувшись вбок на 1..CORNER_NUDGE_STEPS
 # подшагов. Возвращает сдвиг на один подшаг в сторону прохода (или ноль).
 func _corner_nudge(direction: Vector2i, step: float) -> Vector2:
@@ -191,18 +280,77 @@ func _start_substep(target: Vector2) -> void:
 	_is_moving = true
 
 
-# Ищем предмет в клетке перед собой и взаимодействуем с ним.
+# Взаимодействуем с целью (см. _find_target). Если цель сбоку или сзади —
+# сначала поворачиваемся к ней: мешок толкается туда, куда смотрим.
+func _interact() -> void:
+	var target := _find_target()
+	if target == null:
+		return
+	var dir := _dir_to(target)
+	if dir != facing:
+		facing = dir
+		if dir.x != 0:
+			_sprite.flip_h = (dir.x < 0) != sprite_faces_left
+	target.interact(self)
+
+
+# Цель для «действия»: предмет в клетке перед игроком, а если там пусто —
+# предмет в любой соседней клетке (вверх/вниз/влево/вправо).
 # «Своя» клетка — та, где центр игрока; когда упёрся в предмет,
 # предмет всегда в соседней клетке по направлению взгляда.
 # Подходит любой узел из группы "interactable" с методом interact(player).
-func _interact() -> void:
-	var front_cell := Grid.world_to_cell(self, global_position) + facing
+func _find_target() -> Node2D:
+	var my_cell := Grid.world_to_cell(self, global_position)
+	var beside: Node2D = null
 	for node in get_tree().get_nodes_in_group("interactable"):
 		if node == self or not (node is Node2D) or not node.has_method("interact"):
 			continue
-		if Grid.world_to_cell(self, node.global_position) == front_cell:
-			node.interact(self)
-			return
+		for cell in _cells_of(node):
+			var offset := cell - my_cell
+			if offset == facing:
+				return node
+			if beside == null and absi(offset.x) + absi(offset.y) == 1:
+				beside = node
+	return beside
+
+
+# Клетки предмета: большие предметы (босс 2×2) сообщают их через get_cells()
+func _cells_of(node: Node2D) -> Array[Vector2i]:
+	if node.has_method("get_cells"):
+		return node.get_cells()
+	var cells: Array[Vector2i] = [Grid.world_to_cell(self, node.global_position)]
+	return cells
+
+
+# Направление (одно из 4) на соседнюю клетку цели; взгляд — в приоритете
+func _dir_to(target: Node2D) -> Vector2i:
+	var my_cell := Grid.world_to_cell(self, global_position)
+	var result := facing
+	for cell in _cells_of(target):
+		var offset := cell - my_cell
+		if offset == facing:
+			return facing
+		if absi(offset.x) + absi(offset.y) == 1:
+			result = offset
+	return result
+
+
+## Мгновенно переставить игрока (например, босс отбросил при появлении)
+func displace_to(world_pos: Vector2) -> void:
+	global_position = world_pos
+	_target_position = world_pos
+	_is_moving = false
+
+
+# Подсказка «нажми E» над текущей целью. Предмет может попросить её
+# спрятать (например, NPC, пока над ним облачко с репликой)
+func _update_hint() -> void:
+	if _hint == null:
+		return
+	var target := _find_target()
+	if target and target.has_method("hides_interact_hint") and target.hides_interact_hint():
+		target = null
+	_hint.set_target(target)
 
 
 # Squash & stretch на один шаг. Спрайт «растёт» из ног (точка спрайта
@@ -231,6 +379,18 @@ func _play_step_animation() -> void:
 	# 4) пружинка обратно в обычную форму, с небольшим «перелётом»
 	t.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.tween_property(_sprite, "scale", Vector2.ONE, 0.18)
+
+
+# Анимация покоя: лёгкое «дыхание» — плавно оседает и расширяется от пола
+# и возвращается. Пока идём (или доигрывает анимация шага) — выключена.
+func _process(delta: float) -> void:
+	if _is_moving or (_step_tween and _step_tween.is_running()):
+		_idle_time = 0.0
+		return
+	_idle_time += delta * idle_speed
+	# (1 - cos) / 2 плавно идёт 0 → 1 → 0, начиная с нуля — без рывка после шага
+	var squeeze := idle_squash * (1.0 - cos(_idle_time)) / 2.0
+	_sprite.scale = Vector2(1.0 + squeeze * 0.6, 1.0 - squeeze)
 
 
 func _tick_iframes(delta: float) -> void:

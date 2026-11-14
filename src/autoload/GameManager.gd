@@ -47,13 +47,3 @@ func _process(_delta: float) -> void:
 				and Input.is_joy_button_pressed(device, JOY_BUTTON_START):
 			get_tree().quit()
 			return
-
-
-func _unhandled_input(event: InputEvent) -> void:
-	if not event.is_action_pressed("pause"):
-		return
-	match state:
-		GameState.PLAYING:
-			set_state(GameState.PAUSED)
-		GameState.PAUSED:
-			set_state(GameState.PLAYING)

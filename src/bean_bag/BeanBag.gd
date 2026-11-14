@@ -1,7 +1,8 @@
 class_name BeanBag
 extends CharacterBody2D
 
-## Кресло-мешок. Пример предмета для взаимодействия:
+## Кресло-мешок (случайный спрайт мешка с листа tile_map.png).
+## Пример предмета для взаимодействия:
 ## игрок встаёт рядом, смотрит на мешок и жмёт «действие» — мешок
 ## отъезжает на одну клетку в ту сторону, куда смотрит игрок.
 ##
@@ -10,18 +11,41 @@ extends CharacterBody2D
 ##   2) написать у него метод interact(player: Player)
 
 @export var move_speed: float = 90.0     # мешок тяжёлый — едет медленнее игрока
-@export var color := Color(0.85, 0.45, 0.2)
+## Какое задание выполняется, когда мешок сдвинули (пусто — никакое)
 @export var quest_id := "push_bean_bag"
+## Лист с мебелью, откуда берётся картинка мешка
+@export var sheet: Texture2D = preload("res://src/tile_map.png")
+## Мешки на листе (области 32×32) — при появлении выбирается случайный
+@export var skins: Array[Rect2] = [
+	Rect2(176, 0, 32, 32), Rect2(208, 0, 32, 32),   # синие
+	Rect2(240, 0, 32, 32), Rect2(272, 0, 32, 32),   # оранжевые
+]
 
 var _target_position: Vector2
 var _is_moving := false
-var _squash := Vector2.ONE   # растяжение картинки для анимации
+var _sprite: Sprite2D
 
 
 func _ready() -> void:
 	add_to_group("interactable")
 	Grid.snap(self)
 	_target_position = global_position
+	_make_sprite()
+
+
+# Спрайт случайного мешка с листа; точка спрайта — у пола (низ клетки),
+# поэтому мешок сплющивается «от пола»
+func _make_sprite() -> void:
+	var atlas := AtlasTexture.new()
+	atlas.atlas = sheet
+	atlas.region = skins.pick_random() if not skins.is_empty() else Rect2(176, 0, 32, 32)
+	_sprite = Sprite2D.new()
+	_sprite.texture = atlas
+	_sprite.flip_h = randf() < 0.5   # для разнообразия — иногда зеркально
+	var half_height := atlas.region.size.y / 2.0
+	_sprite.position = Vector2(0, Grid.tile_size(self).y / 2.0)
+	_sprite.offset = Vector2(0, -half_height)
+	add_child(_sprite)
 
 
 func _physics_process(delta: float) -> void:
@@ -39,6 +63,13 @@ func interact(player: Player) -> void:
 	push(player.facing)
 
 
+## Мгновенно переставить мешок (например, босс отбросил при появлении)
+func displace_to(world_pos: Vector2) -> void:
+	global_position = world_pos
+	_target_position = world_pos
+	_is_moving = false
+
+
 func push(direction: Vector2i) -> void:
 	var target_pos := Grid.cell_to_world(self, Grid.world_to_cell(self, global_position) + direction)
 
@@ -54,34 +85,10 @@ func push(direction: Vector2i) -> void:
 	_squish()
 
 
-# Небольшая анимация «сплющивания», чтобы мешок казался мягким
+# «Сплющивание» при толчке: мешок мягкий — оседает и пружинит обратно
 # (меняем только картинку, не коллизию)
 func _squish() -> void:
 	var tween := create_tween()
-	tween.tween_method(_set_squash, Vector2.ONE, Vector2(1.2, 0.8), 0.08)
-	tween.tween_method(_set_squash, Vector2(1.2, 0.8), Vector2.ONE, 0.15)
-
-
-func _set_squash(value: Vector2) -> void:
-	_squash = value
-	queue_redraw()
-
-
-# Рисуем мешок кодом, пока нет спрайта. Когда появится картинка —
-# добавь в сцену Sprite2D и удали эту функцию.
-func _draw() -> void:
-	var r := Grid.tile_size(self).x * 0.45
-	# сплющиваем «от пола»: нижняя точка мешка остаётся на месте
-	draw_set_transform(Vector2(0, r * 0.9) * (Vector2.ONE - _squash), 0.0, _squash)
-	_draw_ellipse(Vector2(0, r * 0.55), Vector2(r, r * 0.35), Color(0, 0, 0, 0.25))   # тень
-	_draw_ellipse(Vector2(0, r * 0.1), Vector2(r, r * 0.8), color)                     # мешок
-	_draw_ellipse(Vector2(0, -r * 0.05), Vector2(r * 0.55, r * 0.4), color.darkened(0.25))  # вмятина-сиденье
-	_draw_ellipse(Vector2(-r * 0.45, -r * 0.35), Vector2(r * 0.18, r * 0.12), color.lightened(0.35))  # блик
-
-
-func _draw_ellipse(center: Vector2, radius: Vector2, fill: Color) -> void:
-	var points := PackedVector2Array()
-	for i in 24:
-		var a := TAU * i / 24.0
-		points.append(center + Vector2(cos(a) * radius.x, sin(a) * radius.y))
-	draw_colored_polygon(points, fill)
+	tween.tween_property(_sprite, "scale", Vector2(1.25, 0.75), 0.08)
+	var spring := tween.tween_property(_sprite, "scale", Vector2.ONE, 0.3)
+	spring.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)

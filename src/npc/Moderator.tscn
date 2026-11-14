@@ -1,6 +1,7 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=4 format=3]
 
 [ext_resource type="Script" path="res://src/npc/Moderator.gd" id="1_mod"]
+[ext_resource type="Texture2D" uid="uid://eccbm053kheg" path="res://src/mod_1.png" id="2_mod1"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_mod"]
 size = Vector2(24, 24)
@@ -10,6 +11,7 @@ collision_layer = 2
 script = ExtResource("1_mod")
 npc_name = "Модератор"
 quest_id = ""
+sprite_texture = ExtResource("2_mod1")
 lines = PackedStringArray("Привет! Я модератор хакатона.", "Кончилось печенье или завис ноутбук? Не переживай — через пять секунд приду и всё поправлю!")
 shirt_color = Color(0.95, 0.55, 0.15, 1)
 hair_color = Color(0.12, 0.1, 0.1, 1)

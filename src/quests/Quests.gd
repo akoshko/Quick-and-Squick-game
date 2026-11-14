@@ -33,8 +33,12 @@ func _validate_id(id: String, ids: Dictionary) -> void:
 	ids[id] = true
 
 
-## Сбросить все задания (вызывается при старте уровня)
+## Сбросить все задания (вызывается при старте уровня).
+## Временные задания (босс и т.п.) убираются совсем.
 func reset() -> void:
+	for i in range(quests.size() - 1, -1, -1):
+		if quests[i].temporary:
+			quests.remove_at(i)
 	for quest in quests:
 		quest.done = false
 		for step in quest.steps:
@@ -42,6 +46,40 @@ func reset() -> void:
 	if find(selected_quest_id) == null:
 		selected_quest_id = quests[0].id if not quests.is_empty() else ""
 	selected_quest_changed.emit(selected_quest_id)
+	changed.emit()
+
+
+## Добавить временное задание по ходу игры (например, «Победить босса»).
+## make_current — сразу сделать его текущим квестом (виден на экране).
+func add_quest(id: String, title: String, make_current := true) -> Quest:
+	var existing := find(id)
+	if existing:
+		return existing
+	var quest := Quest.new()
+	quest.id = id
+	quest.title = title
+	quest.temporary = true
+	quests.append(quest)
+	changed.emit()
+	if make_current:
+		select_quest(id)
+	return quest
+
+
+## Убрать задание из списка. Если оно было текущим — текущим станет
+## следующий невыполненный квест.
+func remove_quest(id: String) -> void:
+	var quest := find(id)
+	if quest == null:
+		return
+	quests.erase(quest)
+	if selected_quest_id == id:
+		selected_quest_id = ""
+		for next_quest in quests:
+			if not next_quest.done:
+				selected_quest_id = next_quest.id
+				break
+		selected_quest_changed.emit(selected_quest_id)
 	changed.emit()
 
 

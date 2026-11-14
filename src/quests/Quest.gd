@@ -18,6 +18,10 @@ extends Resource
 ## при перезапуске уровня Quests.reset() сбрасывает его.
 var done := false
 
+## Временное задание (например, «Победить босса»): добавляется по ходу
+## игры через Quests.add_quest() и убирается при перезапуске уровня
+var temporary := false
+
 
 func active_step() -> Quest:
 	for step in steps:

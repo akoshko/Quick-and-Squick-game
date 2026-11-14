@@ -7,8 +7,14 @@ extends NPC
 ## путь по клеткам, подходит, пополняет/чинит и возвращается на пост.
 ## Несколько вызовов встают в очередь.
 ##
+## Модератор работает на свою зону (поле zone): ресурс зовёт модератора
+## своей зоны — того, у кого меньше вызовов, а при равенстве ближайшего.
+## Модератор без зоны отвечает за ресурсы, у которых нет своего модератора.
+##
 ## С ним можно поговорить, как с обычным NPC (он наследует NPC).
 
+## На какую зону работает (пусто — на ресурсы без своих модераторов)
+@export var zone: Zone
 @export var walk_speed := 90.0   ## пикселей в секунду
 @export var work_time := 0.8     ## сколько секунд «чинит/докладывает»
 
@@ -31,6 +37,23 @@ func _ready() -> void:
 	super()
 	add_to_group("moderator")
 	_post = _cell()
+
+
+## Босс отбросил при появлении: встаём в новую клетку и заново ищем путь
+func displace_to(world_pos: Vector2) -> void:
+	global_position = world_pos
+	_stepping = false
+	_path.clear()
+	if _job != null:
+		_jobs.push_front(_job)
+		_job = null
+	_state = State.IDLE
+	_wait = 0.3
+
+
+## Сколько у модератора вызовов (текущий + очередь) — чтобы делить работу
+func get_load() -> int:
+	return _jobs.size() + (1 if _job != null else 0)
 
 
 ## Вызывается ресурсом, который закончился
@@ -119,6 +142,7 @@ func _walk(delta: float) -> void:
 	_path.remove_at(0)
 	_step_target = target
 	_stepping = true
+	face_horizontal(target.x - global_position.x)
 
 
 func _arrive() -> void:
@@ -145,8 +169,16 @@ func _blockers() -> Array[Vector2i]:
 			continue
 		if ((node as CollisionObject2D).collision_layer & 1) == 0:
 			continue
-		cells.append(Grid.world_to_cell(self, node.global_position))
+		if node.has_method("get_cells"):   # большие предметы (босс 2×2)
+			cells.append_array(node.get_cells())
+		else:
+			cells.append(Grid.world_to_cell(self, node.global_position))
 	return cells
+
+
+# Пока идёт — вместо «дыхания» покачивание
+func _idle_paused() -> bool:
+	return _stepping
 
 
 # Покачивание при ходьбе
@@ -157,15 +189,15 @@ func _update_bob(delta: float) -> void:
 		target_bob = -absf(sin(_bob_phase)) * 2.5
 	else:
 		_bob_phase = 0.0
-	if not is_equal_approx(_bob, target_bob):
-		_bob = target_bob
-		queue_redraw()
+	_bob = target_bob
+	_draw_offset = Vector2(0, _bob)   # NPC._draw учитывает этот сдвиг
 
 
-# Выглядит как NPC, но в оранжевой футболке и с бейджем модератора
+# Без спрайта выглядит как NPC в оранжевой футболке с бейджем модератора
 func _draw() -> void:
-	draw_set_transform(Vector2(0, _bob), 0.0, Vector2.ONE)
-	super()
+	super()   # рисует человечка (с «дыханием» и покачиванием), трансформация сохраняется
+	if _sprite:
+		return   # у спрайта бейдж уже нарисован
 	draw_line(Vector2(-4, -5), Vector2(-1, -1), Color(0.15, 0.3, 0.75), 1.0)   # шнурок
 	draw_line(Vector2(4, -5), Vector2(1, -1), Color(0.15, 0.3, 0.75), 1.0)
 	draw_rect(Rect2(-2.5, -1.5, 5, 4), Color(1, 1, 1))                         # бейдж
