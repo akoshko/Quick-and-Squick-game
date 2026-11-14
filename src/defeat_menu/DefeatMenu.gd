@@ -23,4 +23,4 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventKey or event is InputEventJoypadButton:
 		_gone = true
 		GameManager.reset()
-		get_tree().change_scene_to_file("res://src/game/Game.tscn")
+		get_tree().change_scene_to_file("res://src/game/GameCopy.tscn")

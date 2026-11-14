@@ -1,0 +1,12 @@
+[gd_scene load_steps=3 format=3]
+
+[ext_resource type="Script" path="res://src/bean_bag/BeanBag.gd" id="1_bag"]
+
+[sub_resource type="RectangleShape2D" id="RectangleShape2D_bag"]
+size = Vector2(28, 28)
+
+[node name="BeanBag" type="CharacterBody2D"]
+script = ExtResource("1_bag")
+
+[node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+shape = SubResource("RectangleShape2D_bag")
