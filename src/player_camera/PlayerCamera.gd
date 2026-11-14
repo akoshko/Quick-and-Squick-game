@@ -1,39 +1,43 @@
 class_name PlayerCamera
 extends Camera2D
 
-## Камера, следящая за серединой между двумя игроками.
-
-## Видимая область камеры в мировых координатах (используется игроками,
-## чтобы не уходить за край экрана).
-static var visible_rect := Rect2()
+## Камера, следящая за серединой между видимыми игроками.
 
 @export var smooth_speed: float = 6.0
-@export var zoom_level: float = 6.0
+## Сколько клеток видно по вертикали. Zoom подбирается сам под размер
+## экрана, поэтому на мониторе, ноутбуке и телефоне вид одинаковый.
+@export var visible_rows: float = 9.0
 
 @onready var _player1: Player = %Player1
 @onready var _player2: Player = %Player2
 
 
 func _ready() -> void:
-	zoom = Vector2.ONE * zoom_level
-	# Сразу ставим камеру в середину, чтобы visible_rect был верным с первого кадра
+	_update_zoom()
+	get_viewport().size_changed.connect(_update_zoom)
+	# Сразу ставим камеру к игрокам, чтобы она не «прилетала» на старте
 	global_position = _midpoint()
-	_update_visible_rect()
-
-
-func _exit_tree() -> void:
-	visible_rect = Rect2()
 
 
 func _process(delta: float) -> void:
 	global_position = global_position.lerp(_midpoint(), smooth_speed * delta)
-	_update_visible_rect()
 
 
+func _update_zoom() -> void:
+	var screen_height := get_viewport_rect().size.y
+	var world_height := visible_rows * Grid.tile_size(self).y
+	zoom = Vector2.ONE * (screen_height / world_height)
+
+
+# Середина между видимыми игроками. Скрытый игрок (например, Player2,
+# пока играем одни) не учитывается, иначе камера тянется к нему.
 func _midpoint() -> Vector2:
-	return (_player1.global_position + _player2.global_position) / 2.0
-
-
-func _update_visible_rect() -> void:
-	var half_size := get_viewport_rect().size / (2.0 * zoom)
-	visible_rect = Rect2(global_position - half_size, half_size * 2.0)
+	var sum := Vector2.ZERO
+	var count := 0
+	for player in [_player1, _player2]:
+		if is_instance_valid(player) and player.visible:
+			sum += player.global_position
+			count += 1
+	if count == 0:
+		return global_position   # никого не видно — стоим на месте
+	return sum / count

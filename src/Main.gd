@@ -1,6 +1,6 @@
 extends Node2D
 
-## Точка входа: настраивает масштаб окна и переходит на заставку.
+## Точка входа: настраивает масштаб окна и сразу запускает уровень.
 
 const DESIGN_RESOLUTION := Vector2i(3840, 2160) # UHD 4K
 
@@ -27,4 +27,4 @@ func _look_good() -> void:
 
 
 func _run_scene() -> void:
-	get_tree().change_scene_to_file("res://src/splash/SplashScreen.tscn")
+	get_tree().change_scene_to_file("res://src/game/Game.tscn")

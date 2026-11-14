@@ -10,8 +10,8 @@ extends CharacterBody2D
 const IFRAME_DURATION := 1.2
 
 #@export var player_index: int = 1
-@export var tile_size: int = 32
 @export var move_speed: float = 120.0   # пикселей в секунду
+# Размер клетки берётся из TileMapLayer уровня (см. Grid.gd)
 #@export var max_hp: int = 3
 
 #var hp: int
@@ -44,8 +44,14 @@ func _ready() -> void:
 		#_sprite.texture = load("res://src/player/visuals/pisklik-Sheet.png")
 
 	# На старте ставим персонажа ровно в центр клетки, в которой он стоит
-	position = _cell_to_pixels(_pixels_to_cell(position))
-	_target_position = position
+	Grid.snap(self)
+	_target_position = global_position
+
+	# Скрытый игрок (например, Player2 в одиночной игре) не должен
+	# ни ходить от тех же кнопок, ни быть невидимой стеной
+	if not visible:
+		_collision_shape.disabled = true
+		set_physics_process(false)
 
 
 func _physics_process(delta: float) -> void:
@@ -56,8 +62,8 @@ func _physics_process(delta: float) -> void:
 
 	# 1. Если едем — плавно приближаемся к цели
 	if _is_moving:
-		position = position.move_toward(_target_position, move_speed * delta)
-		if position == _target_position:
+		global_position = global_position.move_toward(_target_position, move_speed * delta)
+		if global_position == _target_position:
 			_is_moving = false
 
 	# 2. Если стоим — читаем кнопки и пробуем шагнуть.
@@ -75,16 +81,6 @@ func _physics_process(delta: float) -> void:
 	_tick_iframes(delta)
 
 
-# Пиксели -> номер клетки (floor = округление вниз)
-func _pixels_to_cell(pixels: Vector2) -> Vector2i:
-	return Vector2i((pixels / tile_size).floor())
-
-
-# Клетка -> пиксели + половина тайла, чтобы стоять в центре клетки
-func _cell_to_pixels(cell: Vector2i) -> Vector2:
-	return Vector2(cell * tile_size) + Vector2.ONE * tile_size / 2.0
-
-
 # Только 4 направления, как в старых играх
 func _read_direction() -> Vector2i:
 	if Input.is_action_pressed("move_right"):
@@ -100,8 +96,8 @@ func _read_direction() -> Vector2i:
 
 func _try_step(direction: Vector2i) -> void:
 	# текущая клетка + направление = целевая клетка
-	var target_cell := _pixels_to_cell(position) + direction
-	var target_pos := _cell_to_pixels(target_cell)
+	var target_cell := Grid.world_to_cell(self, global_position) + direction
+	var target_pos := Grid.cell_to_world(self, target_cell)
 
 	# Поворачиваемся, даже если шагнуть нельзя: так можно
 	# встать лицом к мешку, упёршись в него
@@ -110,7 +106,7 @@ func _try_step(direction: Vector2i) -> void:
 		_sprite.flip_h = direction.x < 0
 
 	# Стена? Проверяем ДО шага
-	if test_move(global_transform, target_pos - position):
+	if test_move(global_transform, target_pos - global_position):
 		return
 
 	_target_position = target_pos
@@ -120,11 +116,11 @@ func _try_step(direction: Vector2i) -> void:
 # Ищем предмет в клетке перед собой и взаимодействуем с ним.
 # Подходит любой узел из группы "interactable" с методом interact(player).
 func _interact() -> void:
-	var front_cell := _pixels_to_cell(global_position) + facing
+	var front_cell := Grid.world_to_cell(self, global_position) + facing
 	for node in get_tree().get_nodes_in_group("interactable"):
 		if node == self or not (node is Node2D) or not node.has_method("interact"):
 			continue
-		if _pixels_to_cell(node.global_position) == front_cell:
+		if Grid.world_to_cell(self, node.global_position) == front_cell:
 			node.interact(self)
 			return
 
@@ -157,13 +153,6 @@ func _tick_iframes(delta: float) -> void:
 		#_collision_shape.set_deferred("disabled", true)
 		#set_physics_process(false)
 		#died.emit(player_index)
-
-
-#func respawn(spawn_position: Vector2) -> void:
-	#global_position = _cell_to_pixels(_pixels_to_cell(spawn_position))
-	#_target_position = global_position
-	#_is_moving = false
-	#take_damage(1)
 
 
 ## Возвращает "p1_move_up", "p2_move_left" и т.д.

@@ -9,7 +9,6 @@ extends CharacterBody2D
 ##   1) добавить его в группу "interactable"
 ##   2) написать у него метод interact(player: Player)
 
-@export var tile_size: int = 32          # должен совпадать с tile_size у игрока
 @export var move_speed: float = 90.0     # мешок тяжёлый — едет медленнее игрока
 @export var color := Color(0.85, 0.45, 0.2)
 
@@ -20,15 +19,15 @@ var _squash := Vector2.ONE   # растяжение картинки для ан
 
 func _ready() -> void:
 	add_to_group("interactable")
-	position = _cell_to_pixels(_pixels_to_cell(position))
-	_target_position = position
+	Grid.snap(self)
+	_target_position = global_position
 
 
 func _physics_process(delta: float) -> void:
 	if not _is_moving:
 		return
-	position = position.move_toward(_target_position, move_speed * delta)
-	if position == _target_position:
+	global_position = global_position.move_toward(_target_position, move_speed * delta)
+	if global_position == _target_position:
 		_is_moving = false
 
 
@@ -40,10 +39,10 @@ func interact(player: Player) -> void:
 
 
 func push(direction: Vector2i) -> void:
-	var target_pos := _cell_to_pixels(_pixels_to_cell(position) + direction)
+	var target_pos := Grid.cell_to_world(self, Grid.world_to_cell(self, global_position) + direction)
 
 	# За мешком стена или другой предмет — не двигаемся, просто «плюхаемся»
-	if test_move(global_transform, target_pos - position):
+	if test_move(global_transform, target_pos - global_position):
 		_squish()
 		return
 
@@ -65,18 +64,10 @@ func _set_squash(value: Vector2) -> void:
 	queue_redraw()
 
 
-func _pixels_to_cell(pixels: Vector2) -> Vector2i:
-	return Vector2i((pixels / tile_size).floor())
-
-
-func _cell_to_pixels(cell: Vector2i) -> Vector2:
-	return Vector2(cell * tile_size) + Vector2.ONE * tile_size / 2.0
-
-
 # Рисуем мешок кодом, пока нет спрайта. Когда появится картинка —
 # добавь в сцену Sprite2D и удали эту функцию.
 func _draw() -> void:
-	var r := tile_size * 0.45
+	var r := Grid.tile_size(self).x * 0.45
 	# сплющиваем «от пола»: нижняя точка мешка остаётся на месте
 	draw_set_transform(Vector2(0, r * 0.9) * (Vector2.ONE - _squash), 0.0, _squash)
 	_draw_ellipse(Vector2(0, r * 0.55), Vector2(r, r * 0.35), Color(0, 0, 0, 0.25))   # тень
