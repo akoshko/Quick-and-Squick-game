@@ -8,6 +8,7 @@ This branch develops a new Godot 4.7 game. The entry scene is `src/Main.tscn`; g
 
 - `godot --path .` opens/runs the game with the installed Godot executable.
 - `godot --path . -- --portrait` opens the game in a portrait window with touch controls for mobile layout checks.
+- `./test/gameplay/run.sh` runs the GDScript regression suite in Godot 4.7 without opening a window. Run it from the repository root. Set `GODOT` to the executable path if Godot is outside `PATH`.
 - `dotnet build` is relevant only when changing the existing .NET project or test harness; prefer GDScript for game behavior and features.
 - `./coverage.sh` runs the existing GoDotTest suite and produces a coverage report; use it for .NET/test-harness changes when its prerequisites are installed.
 
@@ -20,6 +21,10 @@ Follow the surrounding file’s formatting. GDScript functions and variables use
 GohuFont is configured through `assets/GohuTheme.tres`. Keep MSDF enabled for small world-space text enlarged by the camera, and pass GohuFont explicitly to `draw_string` calls. Quest checkmark sizes are configured separately for the active quest panel and the “All Quests” window; after changing either size, check both panels in portrait orientation.
 
 ## Testing
+
+Gameplay regression tests live in `test/gameplay/GameplayTests.gd`. The suite starts the current game scenes in a 390 × 844 portrait viewport and writes the test character profile to a temporary directory.
+
+For every gameplay feature or fix, add or update tests for the changed behavior and any regression it addresses. Exercise features through the same scenes, input, or signals that the current game uses. Before marking the change ready, run the full gameplay suite with `./test/gameplay/run.sh` and resolve any failures.
 
 Run the game in Godot after gameplay changes. For UI or asset changes, inspect the affected scene at its target aspect ratio, especially both quest panels in portrait mode. Add tests to the existing GoDotTest harness only when the change concerns its .NET code.
 
