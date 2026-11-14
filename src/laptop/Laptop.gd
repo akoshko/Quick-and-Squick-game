@@ -12,9 +12,10 @@ extends ResourceStation
 
 enum Style { LAPTOP, MONITOR }
 
-@export var style := Style.LAPTOP
+@export var style := Style.MONITOR   ## монитор смотрит прямо; ноутбук — под углом
 @export var quest_id := "poke_laptop"   ## какое задание выполнить (пусто — никакое)
-@export var pokes_needed := 3
+@export var pokes_needed := 10
+## Реплики на тычки: по очереди по кругу, последняя — когда компьютер завис
 @export var poke_lines: PackedStringArray = ["тык", "тык-тык", "Ой, всё. Завис."]
 ## Лист со спрайтами компьютеров
 @export var sheet: Texture2D = preload("res://src/tile_map.png")
@@ -32,20 +33,20 @@ const FRAMES := {
 var _pokes := 0
 var _time := 0.0
 var _flash := 0.0
-var _sprite: Sprite2D
 var _atlas: AtlasTexture
+var _shake: Tween
+var _sprite_home := Vector2.ZERO   # где спрайт стоит в покое (встряска возвращает сюда)
+
+@onready var _sprite: Sprite2D = $Sprite2D   # спрайт в сцене — его видно в редакторе, центр = точка узла
 
 
 func _ready() -> void:
 	super()
 	if refill_text == "":
 		refill_text = "Починил!"
-	_atlas = AtlasTexture.new()
+	_atlas = AtlasTexture.new()   # у каждого компьютера свой кадр
 	_atlas.atlas = sheet
-	_sprite = Sprite2D.new()
 	_sprite.texture = _atlas
-	_sprite.position = Vector2(0, -2)   # стоит на столешнице
-	add_child(_sprite)
 	_time = randf() * FRAME_TIME * 2.0  # компьютеры «мигают» не синхронно
 	_update_frame()
 
@@ -53,20 +54,31 @@ func _ready() -> void:
 func interact(_player: Player) -> void:
 	_poke_shake()
 	if is_empty:
+		Sfx.play_at(&"boop", global_position, 0.05, -4.0)
 		FloatingText.spawn(self, global_position + Vector2(0, -14), "Синий экран…", Color(0.7, 0.8, 1))
 		return
 
 	_pokes += 1
-	var line := poke_lines[mini(_pokes, poke_lines.size()) - 1] if poke_lines.size() > 0 else "тык"
-	FloatingText.spawn(self, global_position + Vector2(0, -14), line)
+	FloatingText.spawn(self, global_position + Vector2(0, -14), _poke_line())
 
 	if _pokes >= pokes_needed:
+		Sfx.play_at(&"crash", global_position)
 		if quest_id != "":
 			Quests.complete(quest_id)
 		_set_empty()   # «закончился» — через 5 с модератор починит
 	else:
+		Sfx.play_at([&"beep", &"boop"].pick_random(), global_position)
 		_flash = FLASH_TIME   # короткая реакция на тычок
 	_update_frame()
+
+
+# Реплика на тычок: последняя — на поломку, остальные идут по кругу
+func _poke_line() -> String:
+	if poke_lines.is_empty():
+		return "тык"
+	if _pokes >= pokes_needed or poke_lines.size() == 1:
+		return poke_lines[-1]
+	return poke_lines[(_pokes - 1) % (poke_lines.size() - 1)]
 
 
 func _on_refilled() -> void:
@@ -103,6 +115,10 @@ func _update_frame() -> void:
 func _poke_shake() -> void:
 	if _sprite == null:
 		return
-	var t := create_tween()
-	t.tween_property(_sprite, "position", Vector2(1.5, -3), 0.04)
-	t.tween_property(_sprite, "position", Vector2(0, -2), 0.16).set_trans(Tween.TRANS_ELASTIC)
+	if _shake:
+		_shake.kill()
+		_sprite.position = _sprite_home
+	_sprite_home = _sprite.position
+	_shake = create_tween()
+	_shake.tween_property(_sprite, "position", _sprite_home + Vector2(1.5, -1), 0.04)
+	_shake.tween_property(_sprite, "position", _sprite_home, 0.16).set_trans(Tween.TRANS_ELASTIC)

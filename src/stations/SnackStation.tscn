@@ -1,12 +1,25 @@
-[gd_scene load_steps=3 format=3]
+[gd_scene load_steps=5 format=3]
 
 [ext_resource type="Script" path="res://src/stations/SnackStation.gd" id="1_snack"]
+[ext_resource type="Texture2D" uid="uid://bcuv2qofaw0up" path="res://src/tile_map.png" id="2_sheet"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_snack"]
 size = Vector2(24, 24)
 
+[sub_resource type="AtlasTexture" id="AtlasTexture_food"]
+atlas = ExtResource("2_sheet")
+region = Rect2(288, 112, 16, 16)
+
 [node name="SnackStation" type="StaticBody2D"]
+collision_layer = 0
+collision_mask = 0
 script = ExtResource("1_snack")
 
+[node name="Sprite2D" type="Sprite2D" parent="."]
+position = Vector2(0, 8)
+texture = SubResource("AtlasTexture_food")
+offset = Vector2(0, -8)
+
 [node name="CollisionShape2D" type="CollisionShape2D" parent="."]
+disabled = true
 shape = SubResource("RectangleShape2D_snack")

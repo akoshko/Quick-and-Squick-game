@@ -2,17 +2,14 @@ extends Node
 
 ## Глобальный менеджер игры (autoload "GameManager").
 
-enum GameState { MENU, PLAYING, PAUSED, GAME_OVER, VICTORY }
-
-const PARTS_NEEDED := 15
+enum GameState { PLAYING, PAUSED }
 
 signal state_changed(new_state: GameState)
-signal part_collected(total: int)
-signal all_parts_collected
 signal achievement_unlocked(id: StringName)
 
+const MUSIC_VOLUME_DB := -12.0   ## музыка тише звуков, чтобы их было слышно
+
 var state: GameState = GameState.PLAYING
-var parts_collected: int = 0
 var _unlocked_achievements: Dictionary[StringName, bool] = {}
 
 
@@ -33,6 +30,7 @@ func _ready() -> void:
 	stream.loop = true
 	var music := AudioStreamPlayer.new()
 	music.stream = stream
+	music.volume_db = MUSIC_VOLUME_DB
 	add_child(music)
 	music.play()
 
@@ -45,21 +43,12 @@ func _on_quest_completed(quest: Quest) -> void:
 			unlock_achievement(&"hide_and_seek")
 
 
-
 func set_state(new_state: GameState) -> void:
 	state = new_state
 	state_changed.emit(new_state)
 
 
-func collect_part() -> void:
-	parts_collected += 1
-	part_collected.emit(parts_collected)
-	if parts_collected >= PARTS_NEEDED:
-		all_parts_collected.emit()
-
-
 func reset() -> void:
-	parts_collected = 0
 	set_state(GameState.PLAYING)
 
 

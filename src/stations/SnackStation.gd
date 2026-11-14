@@ -25,8 +25,9 @@ const EMPTY_COLUMN := 15          # пустая посуда; дальше — 
 const MAX_DRAWN := 3              # больше трёх порций на картинке не помещается
 
 var _left := 0
-var _sprite: Sprite2D
 var _atlas: AtlasTexture
+
+@onready var _sprite: Sprite2D = $Sprite2D   # спрайт в сцене — его видно в редакторе
 
 
 func _ready() -> void:
@@ -34,13 +35,9 @@ func _ready() -> void:
 	_left = portions
 	if refill_text == "":
 		refill_text = "Доложил печенье!" if kind == Kind.COOKIE else "Принёс яблок!"
-	_atlas = AtlasTexture.new()
+	_atlas = AtlasTexture.new()   # у каждой тарелки свой кадр
 	_atlas.atlas = sheet
-	_sprite = Sprite2D.new()
 	_sprite.texture = _atlas
-	_sprite.position = Vector2(0, 6)    # точка спрайта у дна посуды — сжимается «от стола»
-	_sprite.offset = Vector2(0, -8)
-	add_child(_sprite)
 	_update_frame()
 
 
@@ -52,6 +49,7 @@ func interact(_player: Player) -> void:
 		FloatingText.spawn(self, global_position + Vector2(0, -12), "Пусто…", Color(0.8, 0.82, 0.88))
 		return
 	_left -= 1
+	Sfx.play_at(&"nom", global_position, 0.12)
 	FloatingText.spawn(self, global_position + Vector2(0, -12),
 			"Ням!" if kind == Kind.COOKIE else "Хрум!", Color(1, 0.85, 0.5))
 	if quest_id != "":

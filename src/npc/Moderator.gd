@@ -11,6 +11,9 @@ extends NPC
 ## своей зоны — того, у кого меньше вызовов, а при равенстве ближайшего.
 ## Модератор без зоны отвечает за ресурсы, у которых нет своего модератора.
 ##
+## Ещё модератора можно отправить по поручению (send_on_errand): он дойдёт
+## до нужного места, сделает дело и вернётся на пост. Поручение важнее вызовов.
+##
 ## С ним можно поговорить, как с обычным NPC (он наследует NPC).
 
 ## На какую зону работает (пусто — на ресурсы без своих модераторов)
@@ -31,7 +34,13 @@ var _wait := 0.0
 var _stuck := 0                          # сколько раз подряд упёрлись в следующую клетку
 var _avoid: Array[Vector2i] = []         # клетки, в которые физически не пройти (на этот поход)
 const STUCK_LIMIT := 5                   # ≈2 секунды упираемся — ищем обход мимо этой клетки
+const MAX_ATTEMPTS := 3                  # столько раз не смог подойти — чинит удалённо
+var _attempts := {}                      # станция -> сколько раз не удалось подойти
 var _post := Vector2i.ZERO
+var _errand_goals: Array[Vector2i] = []  # куда идти по поручению
+var _errand_done := Callable()           # что сделать на месте (пусто — поручения нет)
+var _on_errand := false                  # идём (или работаем) по поручению
+var _errand_attempts := 0
 var _bob_phase := 0.0
 var _bob := 0.0
 
@@ -42,10 +51,20 @@ func _ready() -> void:
 	_post = _cell()
 
 
+## Поручение: дойти до одной из клеток goals, «поработать» work_time секунд
+## и вызвать on_arrive. Потом модератор сам вернётся на пост.
+func send_on_errand(goals: Array[Vector2i], on_arrive: Callable) -> void:
+	_errand_goals = goals
+	_errand_done = on_arrive
+	_errand_attempts = 0
+	FloatingText.spawn(self, global_position + Vector2(0, -26), "Иду!", Color(1, 0.8, 0.4))
+
+
 ## Босс отбросил при появлении: встаём в новую клетку и заново ищем путь
 func displace_to(world_pos: Vector2) -> void:
 	global_position = world_pos
 	_stepping = false
+	_on_errand = false
 	_path.clear()
 	if _job != null:
 		_jobs.push_front(_job)
@@ -74,7 +93,9 @@ func _physics_process(delta: float) -> void:
 		return
 	match _state:
 		State.IDLE:
-			if not _jobs.is_empty():
+			if _errand_done.is_valid():
+				_start_errand()
+			elif not _jobs.is_empty():
 				_start_job(_jobs.pop_front())
 			elif _cell() != _post:
 				var home: Array[Vector2i] = [_post]
@@ -101,10 +122,34 @@ func _start_job(station: ResourceStation) -> void:
 	if _cell() in goals:
 		_arrive()
 	elif not _walk_to(goals):
-		# Пути нет (например, проход загородили) — попробуем чуть позже
-		_jobs.append(station)
-		_job = null
-		_wait = 1.0
+		# Пути нет (например, проход загородили) — попробуем чуть позже,
+		# а после нескольких неудач починим удалённо
+		_give_up()
+
+
+func _start_errand() -> void:
+	_on_errand = true
+	if _cell() in _errand_goals:
+		_arrive()
+	elif not _walk_to(_errand_goals):
+		_errand_failed()
+
+
+# Не дойти по поручению (проход загорожен): пробуем ещё, а потом делаем дело издалека
+func _errand_failed() -> void:
+	_on_errand = false
+	_errand_attempts += 1
+	if _errand_attempts >= MAX_ATTEMPTS:
+		_finish_errand()
+
+
+func _finish_errand() -> void:
+	var done := _errand_done
+	_errand_done = Callable()
+	_errand_goals.clear()
+	_on_errand = false
+	if done.is_valid():
+		done.call()
 
 
 func _walk_to(goals: Array[Vector2i]) -> bool:
@@ -128,7 +173,7 @@ func _walk(delta: float) -> void:
 		_stepping = false
 
 	# Стоим ровно в клетке. Шли домой, а пришёл вызов — переключаемся
-	if _job == null and not _jobs.is_empty():
+	if _job == null and not _on_errand and not _jobs.is_empty():
 		_path.clear()
 		_state = State.IDLE
 		return
@@ -158,10 +203,17 @@ func _walk(delta: float) -> void:
 	face_horizontal(target.x - global_position.x)
 
 
-# Не дойти до вызова: возвращаем его в очередь и пробуем позже с чистого листа
+# Не дойти до вызова: возвращаем его в очередь и пробуем позже с чистого листа.
+# После MAX_ATTEMPTS неудач чинит удалённо, чтобы ресурс не остался сломанным навсегда.
 func _give_up() -> void:
-	if _job != null:
-		_jobs.append(_job)
+	if _on_errand:
+		_errand_failed()
+	elif _job != null:
+		_attempts[_job] = _attempts.get(_job, 0) + 1
+		if _attempts[_job] >= MAX_ATTEMPTS:
+			_fix_remotely(_job)
+		else:
+			_jobs.append(_job)
 		_job = null
 	_path.clear()
 	_avoid.clear()
@@ -170,8 +222,16 @@ func _give_up() -> void:
 	_wait = 2.0
 
 
+func _fix_remotely(station: ResourceStation) -> void:
+	_attempts.erase(station)
+	if not is_instance_valid(station) or not station.is_empty:
+		return
+	FloatingText.spawn(self, global_position + Vector2(0, -26), "Починю удалённо!", Color(1, 0.8, 0.4))
+	station.refill()
+
+
 func _arrive() -> void:
-	if _job:
+	if _job or _on_errand:
 		_state = State.WORKING
 		_wait = work_time
 	else:
@@ -179,7 +239,12 @@ func _arrive() -> void:
 
 
 func _finish_job() -> void:
+	if _on_errand:
+		_finish_errand()
+		_state = State.IDLE
+		return
 	if is_instance_valid(_job) and _job.is_empty:
+		_attempts.erase(_job)
 		_job.refill()
 	_job = null
 	_state = State.IDLE

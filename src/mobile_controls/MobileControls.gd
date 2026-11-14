@@ -28,6 +28,7 @@ var _action_button: TouchScreenButton
 
 func _ready() -> void:
 	layer = 10   # поверх HUD
+	add_to_group("mobile_controls")
 	visible = show_on_desktop or _is_phone() or "--portrait" in OS.get_cmdline_user_args()
 	if not visible:
 		return
@@ -53,6 +54,18 @@ func _ready() -> void:
 
 	get_viewport().size_changed.connect(_layout)
 	_layout()
+
+
+## Верхний край кнопок на экране (чтобы плашки внизу их не закрывали).
+## Если управление скрыто — низ экрана.
+func top_edge() -> float:
+	var screen := get_viewport().get_visible_rect().size
+	if not visible or _dpad.is_empty():
+		return screen.y
+	var top := screen.y
+	for button: TouchScreenButton in _dpad.values():
+		top = minf(top, button.position.y)
+	return minf(top, _action_button.position.y)
 
 
 func _is_phone() -> bool:

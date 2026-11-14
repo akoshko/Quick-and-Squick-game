@@ -8,16 +8,22 @@ extends CharacterBody2D
 ## проходят друг сквозь друга — никто ни в кого не застревает.
 ## Раз в тайл пути — анимация «сжатия и растяжения» (squash & stretch).
 
-#signal died(player_index: int)
-#signal hp_changed(player_index: int, new_hp: int)
+signal respawned   ## игрок возродился (respawn_at)
+signal emoted(emote: int)   ## свой игрок показал эмоцию (сеть рассылает её остальным)
 
-const IFRAME_DURATION := 1.2
+const GROUP := "player"
+const RESPAWN_GROUP := "player_respawn"   ## маркер точки возрождения на уровне
 const SUBSTEPS := 4            # шаг = тайл / 4 = 8 px
 const CORNER_NUDGE_STEPS := 2  # на сколько подшагов «доводим» к проходу у угла
+const REACH := 44.0            # докуда (px от центра игрока) достаёт «действие»: ≈1,4 клетки
+const REACH_SLACK := 12.0      # запас, прежде чем начатый разговор закроется
+const FACING_BONUS := 16.0     # предмет перед глазами «ближе» на столько px
+const PUSH_ALIGN := 20.0       # мешок толкаем, только если смещены вбок не больше чем на столько
 const NAMEPLATE_FONT_SIZE := 8  # ник над головой (в пикселях мира)
 const NAMEPLATE_Y := -17.0      # нижний край ника — чуть выше макушки
+const EMOTE_Y := -28.0          # кончик облачка эмоции — над ником
+const EMOTE_PITCH: Array[float] = [1.0, 1.25, 1.45, 0.85]   # «голос» эмоции: у каждой свой тон
 
-#@export var player_index: int = 1
 ## Этим персонажем управляет этот компьютер (клавиатура, геймпад, экран).
 ## Сетевые игроки — is_local = false: их двигает и одевает сетевой код
 ## (позиция — с сервера, внешность — через set_appearance()).
@@ -36,14 +42,7 @@ const NAMEPLATE_Y := -17.0      # нижний край ника — чуть в
 @export_group("Анимация покоя")
 @export var idle_squash := 0.05   # насколько «оседает» в покое (0 — без анимации)
 @export var idle_speed := 2.4     # скорость «дыхания»
-#@export var max_hp: int = 3
 
-#var hp: int
-#var is_dead: bool:
-	#get:
-		#return hp <= 0
-
-var _iframe_timer := 0.0
 var _step_tween: Tween
 var _sprite_base: Vector2   # где спрайт стоит в покое (в ногах)
 
@@ -51,6 +50,7 @@ var _target_position: Vector2   # куда сейчас едем (в пиксе�
 var _is_moving := false         # «занят» ли персонаж (едет на подшаг)
 var _walk_distance := -1.0      # путь с прошлой анимации шага (-1 — стояли)
 var _idle_time := 0.0           # фаза «дыхания» в покое
+var _start_position := Vector2.ZERO   # где появился (если на уровне нет точки возрождения)
 var _restored_tiles := Rect2i()
 var _restore_frame := 0
 
@@ -60,23 +60,21 @@ var facing := Vector2i.DOWN
 
 var _hint: InteractHint   # подсказка «нажми E» над ближайшим предметом (только у своего)
 var _nameplate: Label     # ник над головой
+var _emote_bubble: EmoteBubble   # облачко эмоции (пока живо — новую не показать)
+var _emote := -1                 # какая эмоция сейчас над головой
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _collision_shape: CollisionShape2D = $CollisionShape2D
 
 
 func _ready() -> void:
-	#hp = max_hp
-
-	#выбор игрока
-	#if player_index == 1:
-		#_sprite.texture = load("res://src/player/visuals/syrnik-Sheet.png")
-	#else:
-		#_sprite.texture = load("res://src/player/visuals/pisklik-Sheet.png")
-
+	# Все игроки (свой и сетевые) — в группе "player": так их ищут зомби, кофе и т.п.
+	if visible:
+		add_to_group(GROUP)
 	# На старте ставим персонажа ровно в центр клетки, в которой он стоит
 	Grid.snap(self)
 	_target_position = global_position
+	_start_position = global_position
 	_sprite_base = _sprite.position
 
 	# Скрытый игрок (например, Player2 в одиночной игре) не должен
@@ -90,6 +88,10 @@ func _ready() -> void:
 		# Подсказка «E» и внешность из профиля — только у своего персонажа
 		_hint = InteractHint.new()
 		add_child(_hint)
+		# Кнопки эмоций (справа на компьютере, меню в углу на телефоне)
+		var emote_bar := EmoteBar.new()
+		emote_bar.player = self
+		add_child(emote_bar)
 		set_appearance(PlayerProfile.to_dict())
 
 
@@ -132,8 +134,6 @@ func _set_nameplate(nickname: String) -> void:
 
 
 func _physics_process(delta: float) -> void:
-	#if is_dead:
-		#return
 	if GameManager.state == GameManager.GameState.PAUSED:
 		return
 
@@ -155,7 +155,6 @@ func _physics_process(delta: float) -> void:
 	# Сетевого игрока клавиатура не двигает — его позицию задаёт сетевой код
 	# (например, через move_to()), а мы только доводим его до цели выше.
 	if not is_local:
-		_tick_iframes(delta)
 		return
 
 	# 2. Если стоим — читаем кнопки и пробуем шагнуть.
@@ -173,7 +172,6 @@ func _physics_process(delta: float) -> void:
 			_walk_distance = -1.0   # остановились — следующий шаг начнётся с анимации
 
 	_update_hint()
-	_tick_iframes(delta)
 
 
 # 8 направлений: каждая ось отдельно, встречные кнопки гасят друг друга.
@@ -348,45 +346,70 @@ func _interact() -> void:
 	target.interact(self)
 
 
-# Цель для «действия»: предмет в клетке перед игроком, а если там пусто —
-# предмет в любой соседней клетке (вверх/вниз/влево/вправо).
-# «Своя» клетка — та, где центр игрока; когда упёрся в предмет,
-# предмет всегда в соседней клетке по направлению взгляда.
+# Цель для «действия»: ближайший предмет в пределах досягаемости (REACH),
+# а тот, на который смотрим, — в приоритете. Считаем по расстоянию, а не по
+# клеткам: так работает и вплотную (компьютер на столе, модератор, сквозь
+# которого можно пройти), и наискосок. Мешок (есть push) толкается, только
+# если стоим почти на одной линии с ним — правила сокобана не меняются.
 # Подходит любой узел из группы "interactable" с методом interact(player).
 func _find_target() -> Node2D:
-	var my_cell := Grid.world_to_cell(self, global_position)
-	var beside: Node2D = null
+	var best: Node2D = null
+	var best_score := INF
 	for node in get_tree().get_nodes_in_group("interactable"):
 		if node == self or not (node is Node2D) or not node.has_method("interact"):
 			continue
-		for cell in _cells_of(node):
-			var offset := cell - my_cell
-			if offset == facing:
-				return node
-			if beside == null and absi(offset.x) + absi(offset.y) == 1:
-				beside = node
-	return beside
+		var to := _nearest_point(node) - global_position
+		var dist := to.length()
+		if dist > REACH:
+			continue
+		var dir := _axis_dir(to)
+		if node.has_method("push") and absf(to.y if dir.x != 0 else to.x) > PUSH_ALIGN:
+			continue
+		var score := dist - (FACING_BONUS if dir == facing else 0.0)
+		if score < best_score:
+			best_score = score
+			best = node
+	return best
 
 
-# Клетки предмета: большие предметы (босс 2×2) сообщают их через get_cells()
-func _cells_of(node: Node2D) -> Array[Vector2i]:
-	if node.has_method("get_cells"):
-		return node.get_cells()
-	var cells: Array[Vector2i] = [Grid.world_to_cell(self, node.global_position)]
-	return cells
+## Достаёт ли «действие» игрока до предмета (например, NPC закрывает
+## облачко, когда игрок отошёл дальше)
+func can_reach(node: Node2D) -> bool:
+	return (_nearest_point(node) - global_position).length() <= REACH + REACH_SLACK
 
 
-# Направление (одно из 4) на соседнюю клетку цели; взгляд — в приоритете
+# Ближайшая к игроку точка предмета: большие предметы (босс 2×2)
+# сообщают свои клетки через get_cells()
+func _nearest_point(node: Node2D) -> Vector2:
+	if not node.has_method("get_cells"):
+		return node.global_position
+	var best := node.global_position
+	var best_dist := INF
+	for cell: Vector2i in node.get_cells():
+		var point := Grid.cell_to_world(self, cell)
+		var dist := point.distance_squared_to(global_position)
+		if dist < best_dist:
+			best_dist = dist
+			best = point
+	return best
+
+
+# Одно из 4 направлений по большей оси; при равенстве — взгляд, если подходит
+func _axis_dir(to: Vector2) -> Vector2i:
+	var x := Vector2i(signi(roundi(to.x)), 0)
+	var y := Vector2i(0, signi(roundi(to.y)))
+	if absf(to.x) > absf(to.y):
+		return x
+	if absf(to.y) > absf(to.x):
+		return y
+	if to == Vector2.ZERO or facing == x or facing == y:
+		return facing
+	return x
+
+
+# Куда повернуться к цели перед действием (мешок поедет в эту сторону)
 func _dir_to(target: Node2D) -> Vector2i:
-	var my_cell := Grid.world_to_cell(self, global_position)
-	var result := facing
-	for cell in _cells_of(target):
-		var offset := cell - my_cell
-		if offset == facing:
-			return facing
-		if absi(offset.x) + absi(offset.y) == 1:
-			result = offset
-	return result
+	return _axis_dir(_nearest_point(target) - global_position)
 
 
 ## Мгновенно переставить игрока (например, босс отбросил при появлении)
@@ -394,6 +417,68 @@ func displace_to(world_pos: Vector2) -> void:
 	global_position = world_pos
 	_target_position = world_pos
 	_is_moving = false
+
+
+## Точка возрождения: маркер уровня из группы RESPAWN_GROUP (на новой
+## карте — в зоне перекуса), а если его нет — место, где игрок появился
+func respawn_position() -> Vector2:
+	var marker := get_tree().get_first_node_in_group(RESPAWN_GROUP) as Node2D
+	if marker:
+		return Grid.cell_to_world(self, Grid.world_to_cell(self, marker.global_position))
+	return _start_position
+
+
+## Вернуться на точку возрождения (кнопка «Я застрял» в меню)
+func respawn() -> void:
+	respawn_at(respawn_position())
+
+
+## Можно ли показать эмоцию: пока прошлое облачко не исчезло — нельзя
+func can_emote() -> bool:
+	return not is_instance_valid(_emote_bubble)
+
+
+## Какая эмоция сейчас над головой (-1 — никакой)
+func current_emote() -> int:
+	return _emote if is_instance_valid(_emote_bubble) else -1
+
+
+## Своя эмоция (кнопки, клавиши 1–4) — с защитой от спама.
+## Возвращает false, если прошлое облачко ещё не исчезло.
+func try_emote(emote: int) -> bool:
+	if not can_emote() or not visible:
+		return false
+	show_emote(emote)
+	emoted.emit(emote)
+	return true
+
+
+## Показать эмоцию над головой: облачко с иконкой и одно «сжатие».
+## Для сетевых игроков вызывает сетевой код, когда пришла их эмоция.
+func show_emote(emote: int) -> void:
+	if is_instance_valid(_emote_bubble):
+		_emote_bubble.queue_free()
+	_emote = emote
+	_emote_bubble = EmoteBubble.new()
+	_emote_bubble.kind = emote as EmoteBubble.Kind
+	_emote_bubble.position = Vector2(0, EMOTE_Y)
+	add_child(_emote_bubble)
+	Sfx.play_at(&"voice", global_position, 0.04, 0.0, EMOTE_PITCH[emote % EMOTE_PITCH.size()])
+	# Единичное сжатие: присел и пружинкой обратно
+	if _step_tween:
+		_step_tween.kill()
+	_sprite.position = _sprite_base
+	_step_tween = create_tween()
+	_step_tween.tween_property(_sprite, "scale", Vector2(1.0 + squash, 1.0 - squash), 0.08)
+	_step_tween.tween_property(_sprite, "scale", Vector2.ONE, 0.4) 			.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+
+
+## Возрождение в точке (например, поймал зомби). В сетевой игре сервер решает,
+## что игрок пойман, и вызывает это у клиента-владельца персонажа.
+func respawn_at(world_pos: Vector2) -> void:
+	displace_to(world_pos)
+	_walk_distance = -1.0
+	respawned.emit()
 
 
 # Подсказка «нажми E» над текущей целью. Предмет может попросить её
@@ -445,30 +530,3 @@ func _process(delta: float) -> void:
 	# (1 - cos) / 2 плавно идёт 0 → 1 → 0, начиная с нуля — без рывка после шага
 	var squeeze := idle_squash * (1.0 - cos(_idle_time)) / 2.0
 	_sprite.scale = Vector2(1.0 + squeeze * 0.6, 1.0 - squeeze)
-
-
-func _tick_iframes(delta: float) -> void:
-	if _iframe_timer <= 0.0:
-		return
-	_iframe_timer -= delta
-	_sprite.visible = int(_iframe_timer / 0.1) % 2 == 0
-	if _iframe_timer <= 0.0:
-		_sprite.visible = true
-
-
-#func take_damage(amount: int = 1) -> void:
-	#if is_dead or _iframe_timer > 0.0:
-		#return
-	#hp = maxi(0, hp - amount)
-	#_iframe_timer = IFRAME_DURATION
-	#hp_changed.emit(player_index, hp)
-	#if hp <= 0:
-		#visible = false
-		#_collision_shape.set_deferred("disabled", true)
-		#set_physics_process(false)
-		#died.emit(player_index)
-
-
-## Возвращает "p1_move_up", "p2_move_left" и т.д.
-#func _p(action: String) -> String:
-	#return "p%d_%s" % [player_index, action]

@@ -11,6 +11,7 @@ signal quest_completed(quest: Quest)   ## одно задание выполне
 signal changed                         ## список изменился (для UI)
 signal all_completed                   ## выполнены все задания
 signal selected_quest_changed(quest_id: String)
+signal quest_added(quest: Quest)       ## по ходу игры появилось новое задание
 
 const COMPLETION_DISPLAY_TIME := 0.9
 
@@ -61,6 +62,7 @@ func add_quest(id: String, title: String, make_current := true, steps: Array[Que
 	quest.steps = steps
 	quest.temporary = true
 	quests.append(quest)
+	quest_added.emit(quest)
 	changed.emit()
 	if make_current:
 		select_quest(id)

@@ -4,9 +4,6 @@
 [ext_resource type="Texture2D" uid="uid://dj757kuwpcgmv" path="res://src/game/visuals/office_tiles.png" id="2_office"]
 [ext_resource type="PackedScene" uid="uid://knsc8ix4wt87" path="res://src/player/Player.tscn" id="3_fetco"]
 [ext_resource type="Script" uid="uid://b4vcprn6q3dgr" path="res://src/player_camera/PlayerCamera.gd" id="4_vt5r5"]
-[ext_resource type="Texture2D" uid="uid://bchrsou3xvsy8" path="res://src/game/visuals/background_1.png" id="8_gqbak"]
-[ext_resource type="Texture2D" uid="uid://b1llo0v2p2s7q" path="res://src/game/visuals/background_2.png" id="9_epuvi"]
-[ext_resource type="Texture2D" uid="uid://64gbdv3qrid6" path="res://src/game/visuals/background_3.png" id="10_i347c"]
 [ext_resource type="Script" uid="uid://bnwavuhlujx8j" path="res://src/mobile_controls/MobileControls.gd" id="11_mobile"]
 [ext_resource type="PackedScene" path="res://src/bean_bag/BeanBag.tscn" id="12_bag"]
 [ext_resource type="PackedScene" path="res://src/npc/NPC.tscn" id="13_npc"]
@@ -393,28 +390,5 @@ script = ExtResource("21_quest_list")
 [node name="MobileControls" type="CanvasLayer" parent="." unique_id=420517391]
 script = ExtResource("11_mobile")
 
-[node name="HUD" type="CanvasLayer" parent="." unique_id=88678308]
-
 [node name="PlayerCamera" type="Camera2D" parent="." unique_id=1685236841]
 script = ExtResource("4_vt5r5")
-
-[node name="back1" type="Sprite2D" parent="." unique_id=727840085]
-visible = false
-z_index = -100
-position = Vector2(979, 157)
-scale = Vector2(0.5, 0.5)
-texture = ExtResource("8_gqbak")
-
-[node name="back2" type="Sprite2D" parent="." unique_id=865197801]
-visible = false
-z_index = -100
-position = Vector2(5047, 154)
-scale = Vector2(0.5, 0.5)
-texture = ExtResource("9_epuvi")
-
-[node name="back3" type="Sprite2D" parent="." unique_id=1513765776]
-visible = false
-z_index = -101
-position = Vector2(3298, 158)
-scale = Vector2(0.5, 0.5)
-texture = ExtResource("10_i347c")

@@ -67,6 +67,7 @@ func _ready() -> void:
 	_banner = Label.new()
 	_banner.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	_banner.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	_banner.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART   # в портрете длинная надпись — в две строки
 	_banner.add_theme_color_override("font_outline_color", Color(0, 0, 0))
 	_banner.modulate.a = 0.0
 	_root.add_child(_banner)
@@ -141,9 +142,9 @@ func _layout() -> void:
 	_bar.size = bar_size
 	_bar.position = Vector2((screen.x - bar_size.x) / 2.0, top + _name.size.y + 4.0)
 
-	var banner_font := maxi(16, int(screen.y * 0.075))
+	var banner_font := maxi(16, int(minf(screen.y * 0.075, screen.x * 0.09)))
 	_banner.add_theme_font_size_override("font_size", banner_font)
 	_banner.add_theme_constant_override("outline_size", maxi(3, int(banner_font / 8.0)))
-	_banner.size = Vector2(screen.x, banner_font * 2.0)
-	_banner.position = Vector2(0, (screen.y - _banner.size.y) / 2.0)
+	_banner.size = Vector2(screen.x * 0.94, banner_font * 3.0)
+	_banner.position = Vector2(screen.x * 0.03, (screen.y - _banner.size.y) / 2.0)
 	health_layout_changed.emit()

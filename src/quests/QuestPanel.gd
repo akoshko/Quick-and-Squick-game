@@ -12,6 +12,7 @@ const ACHIEVEMENTS := {
 	&"steve_jobs": ["Стив Джобс", "Съесть все яблоки, пока модератор их не пополнил.", true],
 	&"clean_cookies": ["Чистим cookie", "Съесть всё печенье, пока модератор его не пополнил.", true],
 	&"hide_and_seek": ["А я тебя вижу!", "Пройти квест «Прятки».", true],
+	&"zombie_apocalypse": ["Третий день хакатона", "Пережить зомби-апокалипсис: собрать хотя бы один стаканчик кофе.", true],
 }
 
 @export var font_ratio := 0.032
@@ -28,6 +29,7 @@ var _boss_bar: BossBar
 var _arrow_size := 0
 var _heading: Label
 var _close_button: Button
+var _stuck_button: Button
 
 
 func _ready() -> void:
@@ -77,6 +79,10 @@ func _build() -> void:
 	_heading.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	_heading.add_theme_color_override("font_color", GOLD)
 	header.add_child(_heading)
+	_stuck_button = Button.new()
+	_stuck_button.text = "Я застрял"
+	_stuck_button.pressed.connect(_on_stuck_pressed)
+	header.add_child(_stuck_button)
 	_close_button = Button.new()
 	_close_button.text = "Закрыть"
 	_close_button.pressed.connect(close)
@@ -218,6 +224,8 @@ func _layout() -> void:
 	_list.add_theme_constant_override("v_separation", roundi(font * 0.4))
 	_panel.custom_minimum_size = Vector2(size.x * 0.88, size.y * 0.84)
 	_close_button.custom_minimum_size.y = row_height
+	_stuck_button.custom_minimum_size.y = row_height
+	_stuck_button.add_theme_font_size_override("font_size", font)
 	_heading.add_theme_font_size_override("font_size", int(font * 1.1))
 	_close_button.add_theme_font_size_override("font_size", font)
 	_tabs.add_theme_font_size_override("font_size", font)
@@ -239,6 +247,10 @@ func _layout_achievement_popups() -> void:
 	var top := margin
 	if is_instance_valid(_boss_bar):
 		top += _boss_bar.health_bottom()
+	# На телефоне справа вверху кнопка эмоций — уведомления встают под неё
+	var emote_bar := get_tree().get_first_node_in_group("emote_bar") as EmoteBar
+	if emote_bar:
+		top = maxf(top, emote_bar.top_right_bottom() + margin)
 	_achievement_popups.offset_left = -margin - width
 	_achievement_popups.offset_right = -margin
 	_achievement_popups.offset_top = top
@@ -336,6 +348,15 @@ func close() -> void:
 	_root.hide()
 	get_tree().paused = _was_paused
 	_achievement_popups.show()
+
+
+# «Я застрял»: закрываем меню и возвращаем своего персонажа на точку возрождения
+func _on_stuck_pressed() -> void:
+	close()
+	for node in get_tree().get_nodes_in_group(Player.GROUP):
+		var player := node as Player
+		if player and player.is_local:
+			player.respawn()
 
 
 func _exit_tree() -> void:

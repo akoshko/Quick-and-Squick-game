@@ -24,6 +24,8 @@ signal dialogue_finished
 @export var shirt_color := Color(0.35, 0.55, 0.85)
 @export var hair_color := Color(0.3, 0.2, 0.15)
 @export var bubble_width := 96.0   # ширина текста в облачке (пиксели мира)
+## Тембр «голоса» (1 — обычный, меньше — ниже, больше — выше)
+@export var voice_pitch := 1.0
 
 @export_group("Анимация покоя")
 @export var idle_squash := 0.05   # насколько «оседает» в покое (0 — без анимации)
@@ -83,6 +85,20 @@ func interact(player: Player) -> void:
 	_show_line(lines[_line_index])
 
 
+## Сказать реплику в облачке без разговора с игроком (например, модератор
+## пришёл по звонку). Облачко закроется само через seconds секунд.
+func say(text: String, seconds := 2.5) -> void:
+	_line_index = -1
+	_talking_to = null
+	_show_line(text)
+	get_tree().create_timer(seconds).timeout.connect(_close_said.bind(text))
+
+
+func _close_said(text: String) -> void:
+	if _bubble.visible and _talking_to == null and _label.text == text:
+		_close()
+
+
 func set_dialogue(new_lines: PackedStringArray) -> void:
 	_close()
 	lines = new_lines
@@ -98,16 +114,15 @@ func _process(delta: float) -> void:
 	else:
 		queue_redraw()
 
-	# Игрок отошёл дальше соседней клетки — закрываем разговор
+	# Игрок отошёл так, что уже не достаёт до NPC, — закрываем разговор
 	if not _bubble.visible or not is_instance_valid(_talking_to):
 		return
-	var me := Grid.world_to_cell(self, global_position)
-	var them := Grid.world_to_cell(self, _talking_to.global_position)
-	if absi(me.x - them.x) + absi(me.y - them.y) > 1:
+	if not _talking_to.can_reach(self):
 		_close()
 
 
 func _show_line(text: String) -> void:
+	_voice(text)
 	_label.text = text
 	_bubble.visible = true
 	_panel.modulate.a = 0.0   # прячем, пока контейнер не пересчитал размер
@@ -233,6 +248,11 @@ func _body_scale() -> Vector2:
 func face_horizontal(dir_x: float) -> void:
 	if _sprite and dir_x != 0.0:
 		_sprite.flip_h = (dir_x < 0.0) != sprite_faces_left
+
+
+## Звук реплики: «голос» по слогам. Наследник может заменить (зомби хрипит)
+func _voice(text: String) -> void:
+	Sfx.speak(self, text, voice_pitch)
 
 
 ## Наследник может поставить «дыхание» на паузу (например, пока идёт)

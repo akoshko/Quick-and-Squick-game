@@ -26,9 +26,15 @@ extends CharacterBody2D
 ## Иногда зеркалить картинку для разнообразия (только для случайного вида)
 @export var random_flip := true
 
+signal returned   ## вернулся на место после return_to()
+
+const FADE_TIME := 0.35   # сколько тает и проявляется при возврате на место
+
 var _target_position: Vector2
 var _is_moving := false
 var _sprite: Sprite2D
+
+@onready var _shape: CollisionShape2D = $CollisionShape2D
 
 
 func _ready() -> void:
@@ -58,6 +64,43 @@ func _make_sprite() -> void:
 	add_child(_sprite)
 
 
+## Мешок едет после толчка
+func is_moving() -> bool:
+	return _is_moving
+
+
+## Плавно вернуть мешок в точку world_pos (сброс головоломки): мешок тает,
+## переносится и проявляется. Пока возвращается, толкать его нельзя и он
+## никому не мешает. Если на месте стоит персонаж — ждём, пока он отойдёт.
+func return_to(world_pos: Vector2) -> void:
+	remove_from_group("interactable")
+	while _is_moving:
+		await get_tree().physics_frame
+	var fade := create_tween()
+	fade.tween_property(self, "modulate:a", 0.0, FADE_TIME)
+	await fade.finished
+	_shape.disabled = true
+	while _character_at(world_pos):
+		await get_tree().create_timer(0.2).timeout
+	displace_to(world_pos)
+	_shape.disabled = false
+	var appear := create_tween()
+	appear.tween_property(self, "modulate:a", 1.0, FADE_TIME)
+	await appear.finished
+	add_to_group("interactable")
+	returned.emit()
+
+
+# Стоит ли в точке персонаж (игрок или модератор — физический слой 2)
+func _character_at(world_pos: Vector2) -> bool:
+	var query := PhysicsShapeQueryParameters2D.new()
+	query.shape = _shape.shape
+	query.transform = Transform2D(0.0, world_pos)
+	query.collision_mask = 2
+	query.exclude = [get_rid()]
+	return not get_world_2d().direct_space_state.intersect_shape(query, 1).is_empty()
+
+
 func _physics_process(delta: float) -> void:
 	if not _is_moving:
 		return
@@ -85,11 +128,13 @@ func push(direction: Vector2i) -> void:
 
 	# За мешком стена или другой предмет — не двигаемся, просто «плюхаемся»
 	if test_move(global_transform, target_pos - global_position):
+		Sfx.play_at(&"rustle", global_position, 0.12, -6.0)   # упёрся — тише
 		_squish()
 		return
 
 	_target_position = target_pos
 	_is_moving = true
+	Sfx.play_at(&"rustle", global_position, 0.15)
 	if not quest_id.is_empty():
 		Quests.complete(quest_id)
 	_squish()

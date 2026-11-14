@@ -24,6 +24,7 @@ config/icon="uid://c0yvif4h4sw0c"
 GameManager="*res://src/autoload/GameManager.gd"
 Quests="*res://src/quests/Quests.tscn"
 PlayerProfile="*res://src/character/PlayerProfile.gd"
+Sfx="*res://src/autoload/Sfx.gd"
 
 [display]
 

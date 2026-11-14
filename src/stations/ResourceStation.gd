@@ -29,7 +29,44 @@ var _locked := false
 func _ready() -> void:
 	add_to_group("interactable")
 	add_to_group("resource_station")
-	Grid.snap(self)
+	# Не притягиваем к клетке: станция стоит ровно там, где её поставили
+	# в редакторе (например, на столешнице, которая не совпадает с клеткой)
+	_draw_above_furniture.call_deferred()
+
+
+# Станция стоит на столе, но может задевать и соседний стол (стык двух
+# столов): тогда при сортировке по Y стол «наезжает» на монитор или тарелку.
+# Опускаем точку сортировки спрайта ниже всех тайлов мебели, которые он
+# задевает, а картинку сдвигаем обратно — внешне ничего не двигается.
+# Сама станция остаётся на месте (её клетку ищут модераторы и игрок).
+func _draw_above_furniture() -> void:
+	var sprite := get_node_or_null("Sprite2D") as Sprite2D
+	if sprite == null or sprite.texture == null:
+		return
+	var rect := sprite.get_rect()
+	rect.position += sprite.global_position
+	var sort_y := sprite.global_position.y
+	var need := sort_y
+	for node in get_tree().get_nodes_in_group(Grid.OBJECTS_GROUP):
+		var layer := node as TileMapLayer
+		if layer == null or not layer.visible:
+			continue
+		for cell in layer.get_used_cells():
+			var data := layer.get_cell_tile_data(cell)
+			var source := layer.tile_set.get_source(layer.get_cell_source_id(cell)) as TileSetAtlasSource
+			if data == null or source == null:
+				continue
+			var size := Vector2(source.get_tile_texture_region(layer.get_cell_atlas_coords(cell)).size)
+			var center := layer.to_global(layer.map_to_local(cell))
+			var tile_rect := Rect2(center - size / 2.0 - Vector2(data.texture_origin), size)
+			var tile_sort := center.y + data.y_sort_origin
+			if tile_rect.intersects(rect) and tile_sort >= need:
+				need = tile_sort + 1.0
+	if need > sort_y:
+		var shift := need - sort_y
+		y_sort_enabled = true   # спрайт сортируется сам по себе, по своей точке
+		sprite.position.y += shift
+		sprite.offset.y -= shift
 
 
 ## Пополнить ресурс (вызывает модератор)

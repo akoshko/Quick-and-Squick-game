@@ -8,6 +8,8 @@ extends Node
 ##
 ## При появлении: ломает локацию точки, показывает полоску здоровья с
 ## титулом и добавляет задание «Победить босса в …».
+## Пока идёт другое большое событие (восстание зомби-модераторов) —
+## отсчёт стоит и боссы не появляются.
 ## В отладочной сборке F9 — выпустить босса прямо сейчас.
 
 const BOSS_SCENE := preload("res://src/boss/BeanBagBoss.tscn")
@@ -33,7 +35,7 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	if is_instance_valid(_boss) or GameManager.state == GameManager.GameState.PAUSED:
+	if is_instance_valid(_boss) or GameManager.state == GameManager.GameState.PAUSED or _blocked():
 		return
 	_time_left -= delta
 	if _time_left <= 0.0:
@@ -46,9 +48,17 @@ func _unhandled_input(event: InputEvent) -> void:
 		spawn_boss()
 
 
+# Другое событие просит не выпускать боссов (например, восстание зомби)
+func _blocked() -> bool:
+	for node in get_tree().get_nodes_in_group("zombie_uprising"):
+		if node.has_method("blocks_boss_events") and node.blocks_boss_events():
+			return true
+	return false
+
+
 ## Выпустить босса сейчас: в точке at или (если не указана) в случайной
 func spawn_boss(at: BossSpawn = null) -> void:
-	if is_instance_valid(_boss):
+	if is_instance_valid(_boss) or _blocked():
 		return
 	if at == null:
 		var spawns: Array[BossSpawn] = []
