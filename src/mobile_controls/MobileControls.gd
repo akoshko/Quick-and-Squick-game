@@ -14,6 +14,8 @@ const TEX_SIZE := 128
 const BG_COLOR := Color(1, 1, 1, 0.18)
 const BG_PRESSED_COLOR := Color(1, 1, 1, 0.4)
 const FG_COLOR := Color(1, 1, 1, 0.85)
+const LETTER_COLOR := Color(0.12, 0.12, 0.16, 0.9)
+const LETTER_E: PackedStringArray = ["#####", "#....", "#....", "####.", "#....", "#....", "#####"]
 
 const DIRECTIONS := {
 	"move_up": Vector2(0, -1),
@@ -57,15 +59,21 @@ func _ready() -> void:
 
 
 ## Верхний край кнопок на экране (чтобы плашки внизу их не закрывали).
-## Если управление скрыто — низ экрана.
-func top_edge() -> float:
+## Если задан диапазон x_from..x_to — только кнопки, которые в него попадают
+## по горизонтали. Если таких нет или управление скрыто — низ экрана.
+func top_edge(x_from := -INF, x_to := INF) -> float:
 	var screen := get_viewport().get_visible_rect().size
-	if not visible or _dpad.is_empty():
-		return screen.y
 	var top := screen.y
+	if not visible or _dpad.is_empty():
+		return top
+	var buttons: Array[TouchScreenButton] = [_action_button]
 	for button: TouchScreenButton in _dpad.values():
-		top = minf(top, button.position.y)
-	return minf(top, _action_button.position.y)
+		buttons.append(button)
+	for button in buttons:
+		var width := button.texture_normal.get_width() * button.scale.x
+		if button.position.x < x_to and button.position.x + width > x_from:
+			top = minf(top, button.position.y)
+	return top
 
 
 func _is_phone() -> bool:
@@ -138,4 +146,19 @@ func _make_circle_texture(bg: Color) -> ImageTexture:
 				img.set_pixel(x, y, FG_COLOR)
 			elif d <= r:
 				img.set_pixel(x, y, bg)
+	_draw_letter_e(img, c)
 	return ImageTexture.create_from_image(img)
+
+
+# Маленькая пиксельная «E» в центре кнопки действия — как клавиша
+# в подсказке «нажми E» над предметами
+func _draw_letter_e(img: Image, center: Vector2) -> void:
+	var dot := 3   # один «пиксель» буквы — квадрат 3×3
+	var origin := (center - Vector2(LETTER_E[0].length(), LETTER_E.size()) * dot / 2.0).round()
+	for row in LETTER_E.size():
+		for col in LETTER_E[row].length():
+			if LETTER_E[row][col] != "#":
+				continue
+			for dy in dot:
+				for dx in dot:
+					img.set_pixel(int(origin.x) + col * dot + dx, int(origin.y) + row * dot + dy, LETTER_COLOR)

@@ -29,6 +29,7 @@ var _bar: BossBar
 
 
 func _ready() -> void:
+	add_to_group("boss_director")
 	_time_left = first_delay
 	_bar = BossBar.new()
 	add_child(_bar)
@@ -100,6 +101,20 @@ func _on_defeated() -> void:
 	# Выполненное задание босса недолго висит в списке, потом убирается
 	var finished_id := _quest_id
 	get_tree().create_timer(6.0).timeout.connect(Quests.remove_quest.bind(finished_id))
+
+
+## Убрать живого босса без победы (началось другое большое событие —
+## восстание зомби): босс тает, задание снимается, локация восстанавливается
+func dismiss_boss() -> void:
+	if not is_instance_valid(_boss):
+		return
+	var boss := _boss
+	boss.defeated.disconnect(_on_defeated)
+	boss.left.disconnect(_on_left)
+	Quests.remove_quest(_quest_id)
+	_bar.hide_boss()
+	boss.fade_away()
+	_end_event()
 
 
 func _on_left() -> void:

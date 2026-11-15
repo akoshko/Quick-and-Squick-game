@@ -16,7 +16,7 @@ enum Style { LAPTOP, MONITOR }
 @export var quest_id := "poke_laptop"   ## какое задание выполнить (пусто — никакое)
 @export var pokes_needed := 10
 ## Реплики на тычки: по очереди по кругу, последняя — когда компьютер завис
-@export var poke_lines: PackedStringArray = ["тык", "тык-тык", "Ой, всё. Завис."]
+@export var poke_lines: PackedStringArray = PackedStringArray(["тык", "тык-тык", "Ой, всё. Завис."])
 ## Лист со спрайтами компьютеров
 @export var sheet: Texture2D = preload("res://src/tile_map.png")
 

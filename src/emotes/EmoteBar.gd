@@ -26,7 +26,8 @@ var _menu: VBoxContainer     # раскрывающееся меню на тел
 
 
 func _ready() -> void:
-	layer = 9   # над HUD, под сенсорными кнопками и журналом
+	layer = 13   # поверх уведомлений о достижениях (пока открыт журнал — спрятаны)
+	process_mode = Node.PROCESS_MODE_ALWAYS   # чтобы прятаться и появляться при паузе
 	add_to_group("emote_bar")
 	_root = Control.new()
 	_root.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -125,7 +126,7 @@ func _on_emote_pressed(emote: int) -> void:
 
 func _unhandled_input(event: InputEvent) -> void:
 	var key := event as InputEventKey
-	if key == null or not key.pressed or key.echo or not is_instance_valid(player):
+	if key == null or not key.pressed or key.echo or not is_instance_valid(player) or get_tree().paused:
 		return
 	var index := KEYS.find(key.physical_keycode)
 	if index == -1:
@@ -137,6 +138,8 @@ func _unhandled_input(event: InputEvent) -> void:
 
 # Подсветка: нажатая эмоция горит, пока висит облачко, остальные приглушены
 func _process(_delta: float) -> void:
+	# Открыт журнал (игра на паузе) — кнопки эмоций не висят поверх него
+	_root.visible = not get_tree().paused
 	if not is_instance_valid(player) or _buttons.is_empty():
 		return
 	var lit := player.current_emote()

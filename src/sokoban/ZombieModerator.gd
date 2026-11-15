@@ -1,8 +1,10 @@
 class_name ZombieModerator
 extends NPC
 
-## Зомби-модератор. Пока восстание не началось, устало лежит на своём пуфе
-## и похрапывает (спрайт sleep_texture, уже нарисован лёжа).
+## Модератор, который спит на пуфе. Пока восстание не началось, это просто
+## «Уставший модератор» (npc_name): лежит и похрапывает (спрайт sleep_texture,
+## уже нарисован лёжа). Встал во время восстания — он «Зомби-модератор»
+## (risen_name), улёгся обратно — снова уставший.
 ##
 ## Восстание (ZombieUprising): rise() — встаёт, start_roaming() — бродит по
 ## карте по клеткам (кадры walk_frames), ловит игроков. go_home() — идёт
@@ -19,8 +21,13 @@ extends NPC
 @export var bed_region := Rect2(176, 0, 32, 32)
 @export var bed_sheet: Texture2D = preload("res://src/tile_map.png")
 @export var asleep := true
-@export var risen_lines: PackedStringArray = ["ыыыы… дедлайн…", "мозги… то есть код-ревью…", "ууу… прод упал…"]
-@export var walk_speed := 60.0     ## пикселей в секунду (игрок — 120)
+## Как зовут вставшего во время восстания (спящего — npc_name)
+@export var risen_name := "Зомби-модератор"
+@export var risen_lines: PackedStringArray = PackedStringArray(["ыыыы… дедлайн…", "мозги… то есть код-ревью…", "ууу… прод упал…"])
+## Что выкрикивают, пока бродят (раз в shout_every секунд, каждый в своём ритме)
+@export var shouts: PackedStringArray = PackedStringArray(["хочу спать!", "вайфай на табличке!", "еды больше нет!", "где кофе!!"])
+@export var shout_every := 3.0
+@export var walk_speed := 40.0     ## пикселей в секунду (игрок — 120): медленно, но их много
 @export var return_speed := 110.0  ## когда успокоился и идёт спать
 
 const SLEEP_OFFSET := Vector2.ZERO      # спящий спрайт нарисован под пуф той же клетки
@@ -43,12 +50,18 @@ var _frame := 0
 var _walked := 0.0
 var _last_position := Vector2.ZERO
 var _snore_timer := 0.0
+var _tired_name := ""
 var _growl_timer := 0.0
+var _shout_timer := 0.0
+var _last_shout := -1
 
 
 func _ready() -> void:
 	super()
 	add_to_group("zombie_moderator")
+	_tired_name = npc_name
+	if not asleep:
+		set_npc_name(risen_name)
 	_home = global_position
 	_last_position = global_position
 	_make_bed.call_deferred()
@@ -99,6 +112,7 @@ func rise() -> void:
 	_rising = true
 	collision_layer = 0
 	_close()
+	set_npc_name(risen_name)
 	# Встают вразнобой, каждый бормочет своё (облачка соседей налезали бы друг на друга)
 	await get_tree().create_timer(randf() * 0.6).timeout
 	growl()
@@ -123,9 +137,23 @@ func growl() -> void:
 	_growl_timer = randf_range(GROWL_EVERY.x, GROWL_EVERY.y)
 
 
-# Вместо «голоса» NPC зомби хрипит
-func _voice(_text: String) -> void:
-	growl()
+# Уставший модератор говорит обычным голосом NPC, а зомби — хрипит
+func _voice(text: String) -> void:
+	if asleep:
+		super(text)
+	else:
+		growl()
+
+
+# Случайная реплика в облачке (не та же, что в прошлый раз), без звука
+func _shout() -> void:
+	if shouts.is_empty():
+		return
+	var index := randi() % shouts.size()
+	if index == _last_shout and shouts.size() > 1:
+		index = (index + 1) % shouts.size()
+	_last_shout = index
+	say(shouts[index], minf(2.0, shout_every * 0.7), false)
 
 
 ## Начать бродить по карте (встаёт, если ещё лежит)
@@ -134,6 +162,8 @@ func start_roaming(uprising: ZombieUprising) -> void:
 	_path.clear()
 	_stepping = false
 	mode = Mode.ROAM
+	# Первая реплика — в случайный момент: зомби кричат не хором
+	_shout_timer = randf_range(0.8, 0.8 + shout_every)
 	if asleep:
 		rise()
 
@@ -150,10 +180,14 @@ func _physics_process(delta: float) -> void:
 	if mode == Mode.SLEEP or _rising or _uprising == null:
 		return
 	if mode == Mode.ROAM:
-		# Хрип — звук локальный, у каждого клиента свой
+		# Хрип и выкрики — локальные, у каждого клиента свои
 		_growl_timer -= delta
 		if _growl_timer <= 0.0:
 			growl()
+		_shout_timer -= delta
+		if _shout_timer <= 0.0:
+			_shout_timer += shout_every
+			_shout()
 	if not _uprising.is_multiplayer_authority():
 		return   # на клиенте зомби двигает синхронизация с сервера
 	match mode:
@@ -206,6 +240,7 @@ func fall_asleep() -> void:
 	asleep = true
 	_stepping = false
 	_close()
+	set_npc_name(_tired_name)
 	set_dialogue(PackedStringArray(["Хррр…"]))
 	_lie_down()
 	FloatingText.spawn(self, global_position + Vector2(0, -16), "z-z-z…", Color(0.75, 0.85, 1))

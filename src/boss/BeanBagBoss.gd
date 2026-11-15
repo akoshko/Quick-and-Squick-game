@@ -204,6 +204,18 @@ func _leave() -> void:
 	t.tween_callback(queue_free)
 
 
+## Тихо растаять (событие важнее — например, восстание зомби): без победы
+## и без «уполз», просто прозрачность до нуля
+func fade_away(duration := 0.8) -> void:
+	if _dead:
+		return
+	_dead = true
+	_finish()
+	var t := _new_anim()
+	t.tween_property(self, "modulate:a", 0.0, duration)
+	t.tween_callback(queue_free)
+
+
 func _finish() -> void:
 	remove_from_group("interactable")
 	$CollisionShape2D.set_deferred("disabled", true)

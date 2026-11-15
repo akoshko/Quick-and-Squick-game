@@ -28,6 +28,7 @@
 [ext_resource type="Texture2D" uid="uid://dxyywqlsveqmi" path="res://src/mod_2_z2.png" id="27_zombie2_walk"]
 [ext_resource type="Texture2D" uid="uid://djxhv2lk8sjvb" path="res://src/mod_2_sleep.png" id="28_zombie2_sleep"]
 [ext_resource type="Script" uid="uid://cbwkqxvqv8544" path="res://src/sokoban/ZombieUprising.gd" id="29_uprising"]
+[ext_resource type="Script" uid="uid://fwkceyskec0k" path="res://src/game/ScreenCaption.gd" id="30_caption"]
 
 [sub_resource type="TileSetAtlasSource" id="Atlas_floor"]
 texture = ExtResource("2_floor")
@@ -255,7 +256,7 @@ tile_set = SubResource("TileSet_objects")
 
 [node name="Player1" parent="." unique_id=259466784 instance=ExtResource("5_player")]
 unique_name_in_owner = true
-position = Vector2(492, 264)
+position = Vector2(885, 501)
 
 [node name="Player2" parent="." unique_id=2137102027 instance=ExtResource("5_player")]
 unique_name_in_owner = true
@@ -266,6 +267,7 @@ position = Vector2(752, 112)
 position = Vector2(936, 315)
 npc_name = "Елена Анатольевна"
 dialogue_quest_id = "main"
+lines = PackedStringArray("Привет! Удачного Хакатона!", "Вы можете работать в компьютерах в коворкинге, [left]", "Перекусить в зоне снэков [down]", "а также навестить модераторов в крепости из мешков! [right]")
 sprite_texture = ExtResource("7_elan")
 
 [node name="BeanBag1" parent="." unique_id=1832739234 instance=ExtResource("8_bag")]
@@ -329,20 +331,21 @@ position = Vector2(1200, 80)
 
 [node name="Zombie1" parent="SokobanRoom" unique_id=1536797504 instance=ExtResource("25_zombie")]
 position = Vector2(1232, 80)
-lines = ["Привет!"]
 
 [node name="Zombie2" parent="SokobanRoom" unique_id=1718556976 instance=ExtResource("25_zombie")]
 position = Vector2(1296, 112)
 sleep_texture = ExtResource("28_zombie2_sleep")
 walk_frames = Array[Texture2D]([ExtResource("26_zombie2"), ExtResource("27_zombie2_walk")])
 bed_region = Rect2(240, 0, 32, 32)
-lines = ["Привет!"]
 sprite_texture = ExtResource("26_zombie2")
 
 [node name="Zombie3" parent="SokobanRoom" unique_id=1256920191 instance=ExtResource("25_zombie")]
 position = Vector2(1328, 112)
 bed_region = Rect2(208, 0, 32, 32)
-lines = ["Привет!"]
+
+[node name="ScreenCaption" type="Node2D" parent="." unique_id=736952357]
+position = Vector2(896, 32)
+script = ExtResource("30_caption")
 
 [node name="PlayerRespawn" type="Marker2D" parent="." unique_id=1317338795 groups=["player_respawn"]]
 editor_description = "Точка возрождения игроков (зона перекуса): сюда отправляют зомби и кнопка «Я застрял»."
@@ -356,77 +359,65 @@ room = NodePath("../SokobanRoom")
 
 [node name="Zombie4" parent="ZombieUprising" unique_id=1379798026 instance=ExtResource("25_zombie")]
 position = Vector2(368, 208)
-lines = ["Привет!"]
 
 [node name="Zombie5" parent="ZombieUprising" unique_id=2108230791 instance=ExtResource("25_zombie")]
 position = Vector2(464, 304)
 sleep_texture = ExtResource("28_zombie2_sleep")
 walk_frames = Array[Texture2D]([ExtResource("26_zombie2"), ExtResource("27_zombie2_walk")])
 bed_region = Rect2(208, 0, 32, 32)
-lines = ["Привет!"]
 sprite_texture = ExtResource("26_zombie2")
 
 [node name="Zombie6" parent="ZombieUprising" unique_id=1523755805 instance=ExtResource("25_zombie")]
 position = Vector2(464, 496)
 bed_region = Rect2(240, 0, 32, 32)
-lines = ["Привет!"]
 
 [node name="Zombie7" parent="ZombieUprising" unique_id=122790304 instance=ExtResource("25_zombie")]
 position = Vector2(528, 144)
 sleep_texture = ExtResource("28_zombie2_sleep")
 walk_frames = Array[Texture2D]([ExtResource("26_zombie2"), ExtResource("27_zombie2_walk")])
 bed_region = Rect2(272, 0, 32, 32)
-lines = ["Привет!"]
 sprite_texture = ExtResource("26_zombie2")
 
 [node name="Zombie8" parent="ZombieUprising" unique_id=2056407746 instance=ExtResource("25_zombie")]
 position = Vector2(527, 431)
-lines = ["Привет!"]
 
 [node name="Zombie9" parent="ZombieUprising" unique_id=1326590609 instance=ExtResource("25_zombie")]
 position = Vector2(720, 176)
 sleep_texture = ExtResource("28_zombie2_sleep")
 walk_frames = Array[Texture2D]([ExtResource("26_zombie2"), ExtResource("27_zombie2_walk")])
 bed_region = Rect2(208, 0, 32, 32)
-lines = ["Привет!"]
 sprite_texture = ExtResource("26_zombie2")
 
 [node name="Zombie10" parent="ZombieUprising" unique_id=1545326751 instance=ExtResource("25_zombie")]
 position = Vector2(848, 80)
 bed_region = Rect2(240, 0, 32, 32)
-lines = ["Привет!"]
 
 [node name="Zombie11" parent="ZombieUprising" unique_id=104280008 instance=ExtResource("25_zombie")]
 position = Vector2(848, 368)
 sleep_texture = ExtResource("28_zombie2_sleep")
 walk_frames = Array[Texture2D]([ExtResource("26_zombie2"), ExtResource("27_zombie2_walk")])
 bed_region = Rect2(272, 0, 32, 32)
-lines = ["Привет!"]
 sprite_texture = ExtResource("26_zombie2")
 
 [node name="Zombie12" parent="ZombieUprising" unique_id=1359085100 instance=ExtResource("25_zombie")]
 position = Vector2(912, 208)
-lines = ["Привет!"]
 
 [node name="Zombie13" parent="ZombieUprising" unique_id=1170806845 instance=ExtResource("25_zombie")]
 position = Vector2(1072, 80)
 sleep_texture = ExtResource("28_zombie2_sleep")
 walk_frames = Array[Texture2D]([ExtResource("26_zombie2"), ExtResource("27_zombie2_walk")])
 bed_region = Rect2(208, 0, 32, 32)
-lines = ["Привет!"]
 sprite_texture = ExtResource("26_zombie2")
 
 [node name="Zombie14" parent="ZombieUprising" unique_id=1679909602 instance=ExtResource("25_zombie")]
-position = Vector2(1146, 404)
+position = Vector2(1168, 400)
 bed_region = Rect2(240, 0, 32, 32)
-lines = ["Привет!"]
 
 [node name="Zombie15" parent="ZombieUprising" unique_id=95760674 instance=ExtResource("25_zombie")]
 position = Vector2(1328, 496)
 sleep_texture = ExtResource("28_zombie2_sleep")
 walk_frames = Array[Texture2D]([ExtResource("26_zombie2"), ExtResource("27_zombie2_walk")])
 bed_region = Rect2(272, 0, 32, 32)
-lines = ["Привет!"]
 sprite_texture = ExtResource("26_zombie2")
 
 [node name="ZoneHackathon" type="Node2D" parent="." unique_id=1742122551]
@@ -533,8 +524,8 @@ knock_zone = NodePath("../../ZoneHackathon")
 [node name="SpawnLounge" type="Node2D" parent="BossDirector" unique_id=1432116082]
 position = Vector2(1280, 416)
 script = ExtResource("15_boss_spawn")
-location_name = "лаундже"
-boss_title = "Мешок-Мимик, Владыка Лаунжа"
+location_name = "холле"
+boss_title = "Мешок-Мимик, Владыка Холла"
 
 [node name="SpawnHall" type="Node2D" parent="BossDirector" unique_id=361154608]
 position = Vector2(881, 240)

@@ -15,7 +15,11 @@ signal dialogue_finished
 @export var quest_id := "talk_npc"
 ## Если задано, диалог доступен только пока этот квест выполняется.
 @export var dialogue_quest_id := ""
-@export var lines: PackedStringArray = ["Привет!"]
+## Реплики по очереди. Пометка в конце реплики — стрелка под текстом
+## в облачке: [left], [right], [up] или [down] (например, куда идти).
+# Значение по умолчанию — именно PackedStringArray(…), а не просто […]: иначе
+# редактор при сохранении сцены теряет реплики, заданные на карте.
+@export var lines: PackedStringArray = PackedStringArray(["Привет!"])
 ## Спрайт NPC (ноги — внизу картинки). Если не задан — человечек рисуется
 ## кодом цветами shirt_color / hair_color.
 @export var sprite_texture: Texture2D
@@ -40,12 +44,18 @@ const FEET := Vector2(0, 12)  # точка у ног: от неё сжимает
 const SPRITE_FEET := Vector2(0, 16)   # у спрайта ноги — на нижнем краю клетки
 const BUBBLE_BG := Color(1, 1, 1, 0.96)
 const BUBBLE_BORDER := Color(0.15, 0.15, 0.2)
+const ARROW_COLOR := Color(0.85, 0.35, 0.2)
+const ARROW_HEIGHT := 13.0
+const ARROWS := {"left": Vector2.LEFT, "right": Vector2.RIGHT, "up": Vector2.UP, "down": Vector2.DOWN}
 
 var _line_index := -1
 var _talking_to: Player
 var _bubble: Node2D
 var _panel: PanelContainer
 var _label: Label
+var _name_label: Label
+var _arrow: Control                  # стрелка под текстом (если в реплике есть пометка)
+var _arrow_dir := Vector2.ZERO
 var _idle_time := 0.0
 var _draw_offset := Vector2.ZERO   # доп. сдвиг рисунка (например, покачивание модератора)
 var _sprite: Sprite2D               # есть, если задан sprite_texture
@@ -87,16 +97,24 @@ func interact(player: Player) -> void:
 
 ## Сказать реплику в облачке без разговора с игроком (например, модератор
 ## пришёл по звонку). Облачко закроется само через seconds секунд.
-func say(text: String, seconds := 2.5) -> void:
+## with_voice = false — без звука (например, реплики толпы зомби).
+func say(text: String, seconds := 2.5, with_voice := true) -> void:
 	_line_index = -1
 	_talking_to = null
-	_show_line(text)
-	get_tree().create_timer(seconds).timeout.connect(_close_said.bind(text))
+	_show_line(text, with_voice)
+	get_tree().create_timer(seconds).timeout.connect(_close_said.bind(parse_line(text)[0]))
 
 
 func _close_said(text: String) -> void:
 	if _bubble.visible and _talking_to == null and _label.text == text:
 		_close()
+
+
+## Сменить имя в облачке (например, уставший модератор стал зомби)
+func set_npc_name(new_name: String) -> void:
+	npc_name = new_name
+	if _name_label:
+		_name_label.text = new_name
 
 
 func set_dialogue(new_lines: PackedStringArray) -> void:
@@ -121,8 +139,23 @@ func _process(delta: float) -> void:
 		_close()
 
 
-func _show_line(text: String) -> void:
-	_voice(text)
+## Разобрать пометку стрелки в конце реплики:
+## "Перекусить в зоне снэков [down]" → ["Перекусить в зоне снэков", Vector2.DOWN]
+static func parse_line(text: String) -> Array:
+	var found := RegEx.create_from_string("\\s*\\[(left|right|up|down)\\]\\s*$").search(text)
+	if found == null:
+		return [text, Vector2.ZERO]
+	return [text.substr(0, found.get_start()), ARROWS[found.get_string(1)]]
+
+
+func _show_line(text: String, with_voice := true) -> void:
+	var parsed := parse_line(text)
+	text = parsed[0]
+	_arrow_dir = parsed[1]
+	_arrow.visible = _arrow_dir != Vector2.ZERO
+	_arrow.queue_redraw()
+	if with_voice:
+		_voice(text)
 	_label.text = text
 	_bubble.visible = true
 	_panel.modulate.a = 0.0   # прячем, пока контейнер не пересчитал размер
@@ -172,11 +205,11 @@ func _build_bubble() -> void:
 	vbox.add_theme_constant_override("separation", 1)
 	_panel.add_child(vbox)
 
-	var name_label := Label.new()
-	name_label.text = npc_name
-	name_label.add_theme_font_size_override("font_size", FONT_SIZE - 2)
-	name_label.add_theme_color_override("font_color", shirt_color.darkened(0.35))
-	vbox.add_child(name_label)
+	_name_label = Label.new()
+	_name_label.text = npc_name
+	_name_label.add_theme_font_size_override("font_size", FONT_SIZE - 2)
+	_name_label.add_theme_color_override("font_color", shirt_color.darkened(0.35))
+	vbox.add_child(_name_label)
 
 	_label = Label.new()
 	_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
@@ -184,6 +217,13 @@ func _build_bubble() -> void:
 	_label.add_theme_font_size_override("font_size", FONT_SIZE)
 	_label.add_theme_color_override("font_color", Color(0.1, 0.1, 0.15))
 	vbox.add_child(_label)
+
+	_arrow = Control.new()
+	_arrow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_arrow.custom_minimum_size = Vector2(0, ARROW_HEIGHT)
+	_arrow.visible = false
+	_arrow.draw.connect(_draw_arrow)
+	vbox.add_child(_arrow)
 
 	# Хвостик: тёмный треугольник-рамка, сверху белый — он же закрывает
 	# кусок нижней рамки панели, чтобы хвостик «вытекал» из облачка
@@ -198,6 +238,20 @@ func _build_bubble() -> void:
 		Vector2(-4, -TAIL_HEIGHT - 1.5), Vector2(4, -TAIL_HEIGHT - 1.5), Vector2(0, -0.5)])
 	tail.color = BUBBLE_BG
 	_bubble.add_child(tail)
+
+
+# Стрелка под текстом реплики: «древко» и наконечник в сторону _arrow_dir
+func _draw_arrow() -> void:
+	if _arrow_dir == Vector2.ZERO:
+		return
+	var center := (_arrow.size / 2.0).round()
+	var d := _arrow_dir
+	var side := Vector2(-d.y, d.x)
+	var tail := center - d * 6.0
+	var neck := center + d * 1.0
+	var tip := center + d * 6.0
+	_arrow.draw_line(tail, neck, ARROW_COLOR, 2.0)
+	_arrow.draw_colored_polygon(PackedVector2Array([tip, neck + side * 4.0, neck - side * 4.0]), ARROW_COLOR)
 
 
 # Рисуем человечка кодом, пока нет спрайта. Когда появится картинка —

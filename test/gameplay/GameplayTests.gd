@@ -52,6 +52,8 @@ func _run() -> void:
 	await _test_quests()
 	await _test_hide_and_seek()
 	await _test_boss()
+	await _test_tired_moderators()
+	await _test_zombie_uprising()
 	if _failures == 0:
 		print("Completed %d gameplay checks" % _checks)
 	else:
@@ -98,9 +100,13 @@ func _test_map_and_input() -> void:
 			"Portrait touch button sends " + action)
 	_check(mobile.visible and mobile._action_button.action == "action", "Portrait action button is enabled")
 
-	var start := Grid.world_to_cell(_player, _player.global_position)
-	_check(Grid.cell_to_world(_player, start) == _player.global_position and not Grid.is_solid_cell(_player, start),
+	var spawn := Grid.world_to_cell(_player, _player.global_position)
+	_check(Grid.cell_to_world(_player, spawn) == _player.global_position and not Grid.is_solid_cell(_player, spawn),
 		"Player spawns centered on a walkable cell")
+	# Проверки движения — на открытом месте рядом со спавном, чтобы не зависеть
+	# от того, куда на карте поставили игрока
+	var start := _open_cell_near(spawn)
+	_player.displace_to(Grid.cell_to_world(_player, start))
 	var goals: Array[Vector2i] = [start + Vector2i(0, 3)]
 	var blocked: Array[Vector2i] = [start + Vector2i.DOWN]
 	var direct_route := Grid.find_path(_player, start, goals)
@@ -137,8 +143,38 @@ func _test_map_and_input() -> void:
 		"GohuFont uses MSDF for world text")
 
 
+# Ближайшая к from клетка, вокруг которой свободно 3 клетки в ширину и 5 вниз
+func _open_cell_near(from: Vector2i) -> Vector2i:
+	var seen := {from: true}
+	var queue: Array[Vector2i] = [from]
+	while not queue.is_empty():
+		var cell: Vector2i = queue.pop_front()
+		var open := true
+		for x in range(-1, 2):
+			for y in range(-1, 4):
+				if Grid.is_solid_cell(_player, cell + Vector2i(x, y)):
+					open = false
+		if open:
+			return cell
+		for dir: Vector2i in [Vector2i.UP, Vector2i.DOWN, Vector2i.LEFT, Vector2i.RIGHT]:
+			var next := cell + dir
+			if not seen.has(next) and not Grid.is_solid_cell(_player, next) and seen.size() < 2000:
+				seen[next] = true
+				queue.append(next)
+	return from
+
+
 func _test_quests() -> void:
 	var npc: NPC = _game.get_node("NPC")
+	_check(npc.lines.size() == 4 and npc.lines[0] == "Привет! Удачного Хакатона!",
+		"Elena greets new players with four onboarding lines")
+	var arrows: Array[Vector2] = []
+	for line in npc.lines:
+		arrows.append(NPC.parse_line(line)[1])
+	_check(arrows == [Vector2.ZERO, Vector2.LEFT, Vector2.DOWN, Vector2.RIGHT],
+		"Onboarding lines point left to coworking, down to snacks and right to the bean bag fortress")
+	_check(NPC.parse_line("Перекусить в зоне снэков [down]")[0] == "Перекусить в зоне снэков"
+		and NPC.parse_line("Без стрелки")[1] == Vector2.ZERO, "Arrow markers are removed from the bubble text")
 	var bag: BeanBag = _game.get_node("BeanBag1")
 	_check(npc.npc_name == "Елена Анатольевна" and npc.dialogue_quest_id == "main",
 		"Map applies the quest-specific NPC override")
@@ -335,3 +371,69 @@ func _test_boss() -> void:
 	await _wait(6.0)
 	_check(Quests.find(quest_id) == null, "The completed boss quest expires from the journal")
 	_check(not is_instance_valid(first) and not is_instance_valid(second), "Both notifications expire after gameplay resumes")
+
+
+func _test_tired_moderators() -> void:
+	var zombie: ZombieModerator = _game.get_node("SokobanRoom/Zombie1")
+	_check(zombie.asleep and zombie.npc_name == "Уставший модератор",
+		"Sleeping moderators are just tired, not zombies")
+	zombie.rise()
+	await _wait(1.2)
+	_check(not zombie.asleep and zombie.npc_name == "Зомби-модератор", "A risen moderator becomes a zombie")
+	zombie._shout()
+	await get_tree().process_frame
+	_check(zombie._bubble.visible and zombie._label.text in zombie.shouts, "Risen zombies shout one of their lines")
+	zombie.fall_asleep()
+	_check(zombie.asleep and zombie.npc_name == "Уставший модератор", "Falling asleep makes the moderator tired again")
+
+
+func _test_zombie_uprising() -> void:
+	var uprising: ZombieUprising = _game.get_node("ZombieUprising")
+	var terminal: ZombieTerminal = _game.get_node("SokobanRoom/Computer")
+	var zombie: ZombieModerator = _game.get_node("ZombieUprising/Zombie4")
+	_check(zombie.walk_speed <= _player.move_speed / 2.0, "Zombies are much slower than players")
+	_check(is_equal_approx(uprising.time_limit, 180.0), "Players get three minutes to collect coffee")
+
+	# Живой босс тает, когда начинается восстание, и новые не появляются
+	var director: BossDirector = _game.get_node("BossDirector")
+	director.spawn_boss()
+	await _wait(0.3)
+	var boss: BeanBagBoss = director._boss
+	var boss_quest := director._quest_id
+
+	# Не успели: зомби уходят спать без победы и без достижения
+	_player.displace_to(Grid.cell_to_world(_player, uprising.respawn_cell))
+	for i in terminal.pokes_needed:
+		terminal.interact(_player)
+	await _wait(0.5)
+	_check(is_instance_valid(boss) and boss.modulate.a < 1.0 and not boss.is_in_group("interactable")
+		and Quests.find(boss_quest) == null and director._boss == null,
+		"Starting the zombie uprising fades the boss away and removes its quest")
+	await _wait(0.6)
+	_check(not is_instance_valid(boss), "The faded boss is removed")
+	director.spawn_boss()
+	_check(director._boss == null, "Bosses do not appear during the zombie uprising")
+	_check(uprising.state == ZombieUprising.State.ACTIVE and uprising._counter._time_label.text != "",
+		"Breaking the zombie computer starts the uprising with a timer")
+	uprising.time_left = 0.05
+	await _wait(0.3)
+	var banner: BossBar = get_tree().get_first_node_in_group("boss_bar")
+	_check(uprising.is_failed and banner._banner.text == ZombieUprising.FAIL_TEXT
+		and Quests.find(ZombieUprising.QUEST_ID) == null, "Running out of time shows the red failure banner")
+	_check(not GameManager.has_achievement(ZombieUprising.ACHIEVEMENT), "Failing the uprising gives no achievement")
+	for i in 150:
+		if uprising.state == ZombieUprising.State.IDLE:
+			break
+		await _wait(0.1)
+	_check(uprising.state == ZombieUprising.State.IDLE and terminal.cooldown_left > 0.0 and not terminal.is_broken,
+		"After failing, zombies go back to sleep and the computer reboots")
+
+	# Успели: конфетти и достижение тем, кто подобрал кофе
+	terminal.cooldown_left = 0.0
+	for i in terminal.pokes_needed:
+		terminal.interact(_player)
+	await _wait(0.5)
+	while uprising.state == ZombieUprising.State.ACTIVE and not uprising._cups.is_empty():
+		uprising.take_coffee(uprising._cups.keys()[0], _player)
+	_check(not uprising.is_failed and uprising.state == ZombieUprising.State.CALMING
+		and GameManager.has_achievement(ZombieUprising.ACHIEVEMENT), "Collecting all coffee wins and awards the achievement")

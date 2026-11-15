@@ -8,7 +8,11 @@ extends Node2D
 ##   • пойманный игрок возрождается в клетке respawn_cell (зона перекуса);
 ##   • по свободным клеткам появляются стаканчики кофе — нужно собрать
 ##     coffee_needed штук — общий счётчик на всех игроков (плашка вверху);
-##   • пока идёт восстание (и пока зомби укладываются), боссы не появляются.
+##   • живой босс тает и исчезает, а пока идёт восстание (и пока зомби
+##     укладываются), новые боссы не появляются.
+## На сбор кофе — time_limit секунд (время видно на плашке счётчика).
+## Не успели — красная надпись «МОДЕРАТОРЫ ПОШЛИ ОТДЫХАТЬ», задание снимается,
+## зомби идут спать без победы и без достижения.
 ## Когда кофе собран — общее конфетти, большая надпись, а каждый, кто
 ## подобрал хоть один стаканчик, получает достижение «Третий день хакатона».
 ## Зомби успокаиваются: идут к своим пуфам напрямую, сквозь стены и
@@ -26,6 +30,7 @@ signal coffee_spawned(id: int, cell: Vector2i)
 signal coffee_taken(id: int, player: Player)
 signal player_caught(player: Player, respawn_position: Vector2)
 signal calming_started
+signal failed         ## не успели собрать кофе за time_limit
 signal calmed_down   ## все зомби снова спят
 
 @export var terminal: ZombieTerminal
@@ -34,6 +39,8 @@ signal calmed_down   ## все зомби снова спят
 ## возрождения (группа Player.RESPAWN_GROUP) — берётся он.
 @export var respawn_cell := Vector2i(28, 20)
 @export var coffee_needed := 25
+## Сколько секунд даётся на сбор кофе (не успели — зомби уходят спать без победы)
+@export var time_limit := 180.0
 @export var coffee_scene: PackedScene = preload("res://src/sokoban/CoffeeCup.tscn")
 ## Где кофе не появляется (комната с головоломкой — там мешки и тупики)
 @export var no_coffee_area := Rect2i(35, 2, 7, 9)
@@ -44,6 +51,8 @@ signal calmed_down   ## все зомби снова спят
 @export var respawn_grace := 2.0
 
 const QUEST_ID := "zombie_uprising"
+const FAIL_TEXT := "МОДЕРАТОРЫ ПОШЛИ ОТДЫХАТЬ"
+const FAIL_COLOR := Color(1, 0.3, 0.28)
 const ACHIEVEMENT := &"zombie_apocalypse"
 const COFFEE_STEP_ID := "collect_coffee"
 const TARGET_SAMPLES := 12   # из скольких случайных клеток зомби выбирает, куда идти
@@ -52,6 +61,8 @@ enum State { IDLE, ACTIVE, CALMING }
 
 var state := State.IDLE
 var collected := 0
+var time_left := 0.0
+var is_failed := false   ## восстание закончилось поражением (не успели)
 var _astar: AStarGrid2D
 var _walkable: Array[Vector2i] = []
 var _cups := {}      # id -> CoffeeCup
@@ -109,9 +120,13 @@ func start() -> void:
 		return
 	state = State.ACTIVE
 	collected = 0
+	time_left = time_limit
+	is_failed = false
 	_targets.clear()
 	_grace.clear()
 	_takers.clear()
+	# Боссы и зомби вместе не бывают: живой босс тает и исчезает
+	get_tree().call_group("boss_director", "dismiss_boss")
 	_build_grid()
 	_add_quest()
 	if is_instance_valid(_counter):
@@ -119,6 +134,7 @@ func start() -> void:
 	_counter = CoffeeCounter.new()
 	add_child(_counter)
 	_counter.set_count(collected, coffee_needed)
+	_counter.set_time_left(time_left)
 	if is_multiplayer_authority():
 		_spawn_coffee()
 	for zombie in _zombies():
@@ -329,6 +345,17 @@ func set_collected(value: int) -> void:
 		_counter.set_count(collected, coffee_needed)
 
 
+# Отсчёт времени: идёт у всех, а решает, что время вышло, только сервер
+func _process(delta: float) -> void:
+	if state != State.ACTIVE:
+		return
+	time_left = maxf(0.0, time_left - delta)
+	if is_instance_valid(_counter):
+		_counter.set_time_left(time_left)
+	if time_left <= 0.0 and is_multiplayer_authority():
+		fail()
+
+
 # --- Успокоились ---
 
 ## Кофе собран: зомби идут спать (сервер; клиентам — через apply_state)
@@ -342,6 +369,28 @@ func calm_down() -> void:
 	_celebrate()
 	for zombie in _zombies():
 		zombie.go_home()
+	calming_started.emit()
+
+
+## Время вышло: зомби уходят спать без победы и без достижения
+## (сервер; клиентам — через apply_state)
+func fail() -> void:
+	if state != State.ACTIVE:
+		return
+	state = State.CALMING
+	is_failed = true
+	for id in _cups.keys():
+		remove_coffee(id, false)
+	Quests.remove_quest(QUEST_ID)
+	var banner := get_tree().get_first_node_in_group("boss_bar") as BossBar
+	if banner:
+		banner.show_banner(FAIL_TEXT, FAIL_COLOR)
+	if is_instance_valid(_counter):
+		_counter.fade_out()
+	Sfx.play(&"crash", 0.0, 0.0, 0.7)
+	for zombie in _zombies():
+		zombie.go_home()
+	failed.emit()
 	calming_started.emit()
 
 
@@ -381,7 +430,7 @@ func get_state() -> Dictionary:
 	var cups := {}
 	for id: int in _cups:
 		cups[id] = Grid.world_to_cell(self, (_cups[id] as CoffeeCup).global_position)
-	return {"state": state, "collected": collected, "cups": cups}
+	return {"state": state, "collected": collected, "cups": cups, "time_left": time_left, "failed": is_failed}
 
 
 func apply_state(data: Dictionary) -> void:
@@ -395,5 +444,9 @@ func apply_state(data: Dictionary) -> void:
 			remove_coffee(id, false)
 	for id: int in cups:
 		spawn_coffee_at(id, cups[id])
+	time_left = data.get("time_left", time_left)
 	if new_state == State.CALMING and state == State.ACTIVE:
-		calm_down()
+		if data.get("failed", false):
+			fail()
+		else:
+			calm_down()
