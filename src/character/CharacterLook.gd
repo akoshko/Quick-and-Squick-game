@@ -16,15 +16,14 @@ const NO_ACCESSORY := "none"
 const STARTER_ACCESSORY := NO_ACCESSORY
 ## Награда за ВСЕ достижения (Achievements.LIST), а не за одно
 const ALL_ACHIEVEMENTS := &"all"
-## Предметы: надевается один. "effect" — не рисуется на спрайте, а показывается
-## над головой (Player); остальные — пиксель-арт из ACCESSORY_ART поверх персонажа.
+## Предметы: надевается один, рисуется пиксель-артом из ACCESSORY_ART поверх персонажа.
 const ACCESSORIES := {
 	NO_ACCESSORY: {"title": "Нет аксессуара"},
 	"first_steps": {"title": "Значок хакатона", "achievement": &"first_steps"},
 	"apple": {"title": "Яблоко во рту", "achievement": &"steve_jobs"},
 	"cookie": {"title": "Печенька во рту", "achievement": &"clean_cookies"},
 	"detective": {"title": "Очки детектива", "achievement": &"hide_and_seek"},
-	"zz": {"title": "Zz над головой", "achievement": &"zombie_apocalypse", "effect": true},
+	"coffee": {"title": "Кофе на голове", "achievement": &"zombie_apocalypse"},
 	"cat_hat": {"title": "Шапочка-котик", "achievement": ALL_ACHIEVEMENTS},
 }
 const DEFAULT_NICKNAME_COLOR := "white"
@@ -53,14 +52,14 @@ const ACCESSORY_ART := {
 		"...gG", ".KAKG", "KAAAK", "KAAaK", ".KaK."]},
 	"cookie": {"at": Vector2i(10, 10), "rows": [         # печенька во рту
 		".ccc.", "cCDCc", "cCCCc", "cDCDc", ".ccc."]},
-	"zz": {"at": Vector2i.ZERO, "rows": [                # значок для инвентаря (сама Zz — над головой)
-		"ZZZZ...", "...Z...", "..Z.zzz", ".Z....z", "ZZZZ.z.", ".....zz", "....zzz"]},
+	"coffee": {"at": Vector2i(13, 0), "rows": [          # стаканчик кофе на макушке (как на уровне)
+		".KKKKK.", "KcccccK", "KKKKKKK", ".KWWWK.", ".KcRcK.", ".KWWWK.", ".KKKKK."]},
 }
 const ART_PALETTE := {
 	"K": Color("#16161b"), "W": Color("#fafafa"), "R": Color("#d6302a"), "r": Color("#a01e1c"),
 	"F": Color("#5c3c28"), "L": Color(0.75, 0.88, 1.0, 0.6), "A": Color("#f26368"), "a": Color("#be323c"),
 	"G": Color("#78c85a"), "g": Color("#46963c"), "C": Color("#ecbe78"), "c": Color("#965f2d"),
-	"D": Color("#502d19"), "Z": Color("#9fd8ff"), "z": Color("#5fa8e6"),
+	"D": Color("#502d19"),
 }
 ## Особые скины создателей игры: готовые спрайты 32×32 вместо собранных слоёв.
 ## Выдаёт только сервер (админка, по токену сессии); из профиля игрока не принимаются.
@@ -151,7 +150,7 @@ static func build(hoodie_id: String, style_id: String, color_id: String, accesso
 		_recolor(hair_image, HAIR_KEY, hair.color, hair.get("streak", null), streak_cols)
 		_overlay(image, hair_image)
 
-	if ACCESSORY_ART.has(accessory_id) and not ACCESSORIES.get(accessory_id, {}).get("effect", false):
+	if ACCESSORY_ART.has(accessory_id):
 		var art := accessory_icon(accessory_id).get_image()
 		image.blend_rect(art, Rect2i(Vector2i.ZERO, art.get_size()), ACCESSORY_ART[accessory_id].at)
 

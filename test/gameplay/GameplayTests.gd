@@ -215,7 +215,7 @@ func _test_journal_profile() -> void:
 	_check(CharacterLook.accessory_option("apple").achievement == &"steve_jobs"
 		and CharacterLook.accessory_option("cookie").achievement == &"clean_cookies"
 		and CharacterLook.accessory_option("detective").achievement == &"hide_and_seek"
-		and CharacterLook.accessory_option("zz").achievement == &"zombie_apocalypse"
+		and CharacterLook.accessory_option("coffee").achievement == &"zombie_apocalypse"
 		and CharacterLook.accessory_option("green").achievement == &"zombie_apocalypse"
 		and CharacterLook.accessory_option("blue").get("stars", false),
 		"Each achievement has its own reward")
@@ -715,7 +715,7 @@ func _test_boss() -> void:
 	_check(director._boss == boss and director._quest_id == quest_id, "Only one boss can be alive at a time")
 	boss.interact(_player)
 	boss.interact(_player)
-	_check(boss.hp == director.boss_hp - 1, "Boss ignores hits during the invulnerability window")
+	_check(boss.hp == director.boss_hp - 1, "A player cannot hit the boss again during their own cooldown")
 
 	var popups := _journal._achievement_popups
 	var recent := popups.get_child_count()
@@ -751,10 +751,10 @@ func _test_boss() -> void:
 			"Each portrait notification leaves the boss bar and quest controls clear")
 	_check(director.boss_hp == 50 and boss.max_hp == 50, "The mimic boss has 50 health points")
 	await _wait(0.55)
-	# 50 ударов подряд: окно неуязвимости уже проверено выше, сбрасываем его,
+	# 50 ударов подряд: кулдаун игрока уже проверен выше, сбрасываем его,
 	# чтобы бой не тянулся почти полминуты
 	for i in range(boss.hp):
-		boss._invulnerable = 0.0
+		boss.reset_cooldowns()
 		boss.interact(_player)
 		await get_tree().process_frame
 	_check(Quests.is_done(quest_id) and GameManager.has_achievement(&"boss_victory"),
@@ -963,13 +963,17 @@ func _test_server_boss_rewards() -> void:
 	_in_mode(NetConfig.Mode.SERVER, func() -> void:
 		director.spawn_boss(director.get_node("SpawnHall"))
 		var boss := director._boss
+		var hp_before := boss.hp
 		boss.interact(first)
 		boss.interact(second)
-		_check(director._participants.size() == 1, "An invulnerable hit does not qualify as damage")
+		_check(director._participants.size() == 2 and boss.hp == hp_before - 2,
+			"Two players hitting at the same moment both deal damage")
+		boss.interact(first)
+		_check(boss.hp == hp_before - 2, "A repeated hit during the player's cooldown deals no damage")
 		registry.peer_lost(2, 1.0)
 		registry.expire(1.0 + PlayerRegistry.HOLD_SECONDS)
 		while boss.hp > 0:
-			boss._invulnerable = 0.0
+			boss.reset_cooldowns()
 			boss.interact(second))
 	_check(registry.achievements_of(first_token).has(&"boss_victory")
 		and registry.achievements_of(second_token).has(&"boss_victory")

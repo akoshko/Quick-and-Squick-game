@@ -3,7 +3,8 @@ extends StaticBody2D
 
 ## Босс: мешок-мимик. Занимает 2×2 тайла, спрайт случайный — оранжевый
 ## или синий (skins). Бьют его «действием» (E), стоя рядом: каждый удар —
-## одно деление здоровья, после удара он ненадолго неуязвим.
+## одно деление здоровья, после удара игрок ненадолго не может бить снова.
+## Кулдаун удара — у каждого игрока свой: бить босса могут все одновременно.
 ## Сидит, пока не победят (если lifetime > 0 — уползает через столько секунд).
 ##
 ## Анимации — в том же духе, что у игрока и NPC (сжатие и растяжение от пола):
@@ -19,7 +20,7 @@ signal hit_by(player: Player)
 signal defeated
 signal left   ## уполз, не дождавшись победы
 
-const INVULNERABLE_TIME := 0.5
+const HIT_COOLDOWN := 0.5   ## пауза между ударами одного игрока
 const FLASH_SHADER := """
 shader_type canvas_item;
 uniform float flash : hint_range(0.0, 1.0) = 0.0;
@@ -52,7 +53,7 @@ var hint_offset := Vector2(0, -14)
 
 var _time := 0.0
 var _age := 0.0
-var _invulnerable := 0.0
+var _cooldowns := {}   # игрок (instance id) → сколько ещё ждать до следующего удара
 var _flash := 0.0
 var _chomp_in := 0.0
 var _dead := false
@@ -93,11 +94,11 @@ func get_cells() -> Array[Vector2i]:
 
 
 func interact(player: Player) -> void:
-	if net_view or _dead or _invulnerable > 0.0:
+	if net_view or _dead or not can_be_hit_by(player):
 		return
 	hp -= 1
 	hit_by.emit(player)
-	_invulnerable = INVULNERABLE_TIME
+	_cooldowns[player.get_instance_id()] = HIT_COOLDOWN
 	_flash = 1.0
 	FloatingText.spawn(self, global_position + Vector2(0, -38), "-1", Color(1, 0.4, 0.35))
 	hp_changed.emit(hp, max_hp)
@@ -107,9 +108,22 @@ func interact(player: Player) -> void:
 		_hit()
 
 
+## Может ли этот игрок ударить сейчас (его личный кулдаун прошёл)
+func can_be_hit_by(player: Node) -> bool:
+	return _cooldowns.get(player.get_instance_id(), 0.0) <= 0.0
+
+
+## Сбросить кулдауны всех игроков (тесты: длинный бой без ожидания)
+func reset_cooldowns() -> void:
+	_cooldowns.clear()
+
+
 func _process(delta: float) -> void:
 	_time += delta
-	_invulnerable = maxf(0.0, _invulnerable - delta)
+	for id: int in _cooldowns.keys():
+		_cooldowns[id] -= delta
+		if _cooldowns[id] <= 0.0:
+			_cooldowns.erase(id)
 	_flash = move_toward(_flash, 0.0, delta * 4.0)
 	_material.set_shader_parameter("flash", _flash)
 	if _dead:
