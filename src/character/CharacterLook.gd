@@ -125,30 +125,34 @@ static var _accessory_icons: Dictionary[String, Texture2D] = {}
 
 ## Текстура персонажа для выбранных вариантов (id из списков выше).
 ## Неизвестный id заменяется первым вариантом списка. Особый скин (SPECIAL_SKINS) заменяет
-## тело, худи и причёску целиком; аксессуар на него не надевается, чтобы не закрыть рисунок.
+## тело, худи и причёску целиком. Аксессуар накладывается поверх любого скина.
 static func build(hoodie_id: String, style_id: String, color_id: String, accessory_id := "",
 		special_skin := "") -> Texture2D:
-	if SPECIAL_SKINS.has(special_skin):
-		return load(SPECIAL_SKINS[special_skin].texture) as Texture2D
-	var key := "%s/%s/%s/%s" % [hoodie_id, style_id, color_id, accessory_id]
+	var skin: Dictionary = SPECIAL_SKINS.get(special_skin, {})
+	var key := "%s/%s/%s/%s" % [hoodie_id, style_id, color_id, accessory_id] if skin.is_empty() \
+		else "%s/%s" % [special_skin, accessory_id]
 	if _cache.has(key):
 		return _cache[key]
 
-	var hoodie := find(HOODIES, hoodie_id)
-	var style := find(HAIR_STYLES, style_id)
-	var hair := find(HAIR_COLORS, color_id)
-
-	var image := _load_image("body.png")
-	if hoodie.has("layer"):
-		_overlay(image, _load_image(hoodie.layer))
+	var image: Image
+	if not skin.is_empty():
+		image = _load_image(skin.texture)
 	else:
-		_recolor(image, HOODIE_KEY, hoodie.color)
+		var hoodie := find(HOODIES, hoodie_id)
+		var style := find(HAIR_STYLES, style_id)
+		var hair := find(HAIR_COLORS, color_id)
 
-	if style.layer != "":
-		var hair_image := _load_image(style.layer)
-		var streak_cols: Array = style.get("streak_cols", DEFAULT_STREAK_COLS)
-		_recolor(hair_image, HAIR_KEY, hair.color, hair.get("streak", null), streak_cols)
-		_overlay(image, hair_image)
+		image = _load_image(DIR + "body.png")
+		if hoodie.has("layer"):
+			_overlay(image, _load_image(DIR + hoodie.layer))
+		else:
+			_recolor(image, HOODIE_KEY, hoodie.color)
+
+		if style.layer != "":
+			var hair_image := _load_image(DIR + style.layer)
+			var streak_cols: Array = style.get("streak_cols", DEFAULT_STREAK_COLS)
+			_recolor(hair_image, HAIR_KEY, hair.color, hair.get("streak", null), streak_cols)
+			_overlay(image, hair_image)
 
 	if ACCESSORY_ART.has(accessory_id):
 		var art := accessory_icon(accessory_id).get_image()
@@ -308,8 +312,8 @@ static func index_of(list: Array[Dictionary], id: String) -> int:
 	return 0
 
 
-static func _load_image(file: String) -> Image:
-	var image := (load(DIR + file) as Texture2D).get_image()
+static func _load_image(path: String) -> Image:
+	var image := (load(path) as Texture2D).get_image()
 	if image.is_compressed():
 		image.decompress()
 	image.convert(Image.FORMAT_RGBA8)

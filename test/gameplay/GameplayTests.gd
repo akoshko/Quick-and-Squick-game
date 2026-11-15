@@ -1276,9 +1276,15 @@ func _test_special_skins() -> void:
 	remote.player_number = 5
 	_game.add_child(remote)
 	for id: String in CharacterLook.SPECIAL_SKINS:
+		var base := (load(CharacterLook.SPECIAL_SKINS[id].texture) as Texture2D).get_image()
 		remote.profile = {"name": "Создатель", "hoodie": "red", "accessory": "first_steps", "special_skin": id}
-		_check(remote._sprite.texture == load(CharacterLook.SPECIAL_SKINS[id].texture),
-			"A replicated special skin shows the creator sprite: " + id)
+		var worn := remote._sprite.texture.get_image()
+		_check(worn.get_pixel(16, 21).is_equal_approx(CharacterLook.ART_PALETTE["R"])
+			and worn.get_pixel(16, 28).is_equal_approx(base.get_pixel(16, 28)),
+			"A replicated badge is drawn over the assigned skin: " + id)
+		remote.profile = remote.profile.merged({"accessory": CharacterLook.NO_ACCESSORY}, true)
+		_check(remote._sprite.texture.get_image().get_data() == base.get_data(),
+			"Removing the badge restores the assigned skin: " + id)
 	remote.profile = {"name": "Создатель", "hoodie": "red", "special_skin": ""}
 	_check(remote._sprite.texture == CharacterLook.build_from(remote.profile)
 		and remote._sprite.texture != load(CharacterLook.SPECIAL_SKINS.dasha.texture), "Without a special skin the layered look returns")
