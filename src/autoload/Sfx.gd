@@ -32,6 +32,12 @@ const HEAR_DISTANCE := 480.0    # дальше (px мира) звуки в ми�
 const VOICE_STEP := 0.065       # пауза между слогами голоса NPC
 const VOICE_MAX_SYLLABLES := 14
 
+signal muted_changed(muted: bool)
+
+const SETTINGS_PATH := "user://settings.cfg"
+
+## Звук выключен (вся игра, вместе с музыкой); запоминается на устройстве
+var muted := false
 var _playing := {}       # имя -> сколько сейчас звучит
 var _last_pitch := {}    # имя -> прошлая высота (чтобы повтор был другим)
 var _speech := {}        # говорящий -> номер реплики (новая реплика обрывает старую)
@@ -39,10 +45,30 @@ var _speech := {}        # говорящий -> номер реплики (но
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS   # звук достижения — и при открытом журнале
+	var settings := ConfigFile.new()
+	if settings.load(SETTINGS_PATH) == OK:
+		_apply_muted(settings.get_value("audio", "muted", false))
 	# Звук личного события (квест, ачивка) играет всегда, даже если событие пришло вместе с
 	# состоянием мира с сервера (Net.replaying глушит только звуки мира — их шлёт сервер)
 	GameManager.achievement_unlocked.connect(func(_id: StringName) -> void: _play_local(&"achievement", 0.0))
 	Quests.quest_added.connect(func(_quest: Quest) -> void: _play_local(&"quest", 0.0))
+
+
+## Включить или выключить весь звук (кнопка в журнале); выбор сохраняется
+func set_muted(value: bool) -> void:
+	if value == muted:
+		return
+	_apply_muted(value)
+	var settings := ConfigFile.new()
+	settings.load(SETTINGS_PATH)
+	settings.set_value("audio", "muted", muted)
+	settings.save(SETTINGS_PATH)
+	muted_changed.emit(muted)
+
+
+func _apply_muted(value: bool) -> void:
+	muted = value
+	AudioServer.set_bus_mute(AudioServer.get_bus_index(&"Master"), muted)
 
 
 ## Звук интерфейса: одинаково слышен везде. pitch — базовая высота

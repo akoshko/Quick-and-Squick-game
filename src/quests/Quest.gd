@@ -23,6 +23,15 @@ var done := false
 var temporary := false
 
 
+## Задание, которое видит игрок: текущий шаг, а если шагов нет — сам квест.
+## У выполненного квеста — его последний шаг.
+func current_task() -> Quest:
+	if steps.is_empty():
+		return self
+	var step := active_step()
+	return step if step else steps[-1]
+
+
 func active_step() -> Quest:
 	for step in steps:
 		if not step.done:
