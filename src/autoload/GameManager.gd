@@ -6,6 +6,7 @@ enum GameState { PLAYING, PAUSED }
 
 signal state_changed(new_state: GameState)
 signal achievement_unlocked(id: StringName)
+signal reward_achievements_synced
 
 const MUSIC_VOLUME_DB := -12.0   ## музыка тише звуков, чтобы их было слышно
 
@@ -18,13 +19,24 @@ func has_achievement(id: StringName) -> bool:
 
 
 func unlock_achievement(id: StringName) -> void:
-	# сервер ачивок не ведёт: уходит клиенту того, кто действует (Net.as_actor), иначе всем
+	# На сервере награда записывается в профиль игрока и передаётся ему.
 	if Net.forward_personal(&"GameManager", &"unlock_achievement", [id]):
 		return
 	if has_achievement(id):
 		return
 	_unlocked_achievements[id] = true
 	achievement_unlocked.emit(id)
+
+
+func sync_reward_achievements(earned: Array) -> void:
+	for catalog in [CharacterLook.ACCESSORIES, CharacterLook.NICKNAME_COLORS]:
+		for option in catalog.values():
+			var id: StringName = option.get("achievement", &"")
+			if id != &"" and id not in earned:
+				_unlocked_achievements.erase(id)
+	for id: StringName in earned:
+		unlock_achievement(id)
+	reward_achievements_synced.emit()
 
 
 func _ready() -> void:
@@ -41,7 +53,8 @@ func _ready() -> void:
 func _on_quest_completed(quest: Quest) -> void:
 	match quest.id:
 		"main":
-			unlock_achievement(&"first_steps")
+			if not Net.is_network():
+				unlock_achievement(&"first_steps")
 		"hide_and_seek":
 			unlock_achievement(&"hide_and_seek")
 

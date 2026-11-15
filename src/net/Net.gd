@@ -10,7 +10,7 @@ const ACTOR_NOBODY := -1
 ## Каждый вызов forward_personal должен быть в этом списке, иначе клиент его молча проигнорирует.
 const PERSONAL_CALLS := {
 	&"Quests": [&"complete", &"remove_quest", &"reset", &"net_add_quest"],
-	&"GameManager": [&"unlock_achievement"],
+	&"GameManager": [&"unlock_achievement", &"sync_reward_achievements"],
 }
 
 signal link_changed(state: int, reason: String)
@@ -206,9 +206,29 @@ func forward_personal(target: StringName, method: StringName, args := []) -> boo
 	elif _actor_peer == ACTOR_EVERYONE:
 		peers = world_ready_peers.keys()
 	for peer: int in peers:
+		if target == &"GameManager" and method == &"unlock_achievement" and server != null:
+			var player_id := server.registry.player_for_peer(peer)
+			award_player_achievement(server.registry.token_for_player(player_id), args[0])
+			continue
 		if world_ready_peers.has(peer) and peer in multiplayer.get_peers():
 			personal_call.rpc_id(peer, target, method, args)
 	return true
+
+
+func award_player_achievement(token: String, id: StringName) -> void:
+	if server == null or not server.registry.award_achievement(token, id):
+		return
+	var peer := server.registry.peer_for_token(token)
+	if world_ready_peers.has(peer) and peer in multiplayer.get_peers():
+		personal_call.rpc_id(peer, &"GameManager", &"unlock_achievement", [id])
+
+
+func record_tutorial_step(id: String) -> void:
+	if server == null or _actor_peer <= 0:
+		return
+	var player_id := server.registry.player_for_peer(_actor_peer)
+	if server.registry.advance_tutorial(player_id, id, Quests.find("main").steps):
+		award_player_achievement(server.registry.token_for_player(player_id), &"first_steps")
 
 
 ## Сервер -> клиент: личное событие (квест, ачивка). Живёт на autoload: квесты переживают
@@ -266,6 +286,8 @@ func _on_world_peer_disconnected(peer_id: int) -> void:
 func restart_world_epoch() -> void:
 	world_epoch += 1
 	world_ready_peers.clear()
+	if server != null:
+		server.registry.reset_tutorial_progress()
 	set_world_epoch.rpc(world_epoch, true)
 
 
@@ -305,6 +327,13 @@ func world_ready(epoch: int) -> void:
 	if not peer in multiplayer.get_peers():
 		return
 	world_ready_peers[peer] = true
+	var player_id := server.registry.player_for_peer(peer)
+	if player_id != "":
+		var token := server.registry.token_for_player(player_id)
+		personal_call.rpc_id(peer, &"GameManager", &"sync_reward_achievements", [server.registry.achievements_of(token).keys()])
+		var steps: Array[Quest] = Quests.find("main").steps
+		for i in server.registry.tutorial_step_of(player_id):
+			personal_call.rpc_id(peer, &"Quests", &"complete", [steps[i].id])
 	world_peer_ready.emit(peer)
 
 
@@ -312,3 +341,15 @@ func world_ready(epoch: int) -> void:
 func register(token: String) -> void:
 	if server != null:
 		server.on_register(multiplayer.get_remote_sender_id(), token)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func equip_accessory(id: String) -> void:
+	if server == null:
+		return
+	var player_id := server.registry.equip_accessory(multiplayer.get_remote_sender_id(), id)
+	if player_id == "":
+		return
+	var net_world := world()
+	if net_world != null:
+		net_world.refresh_player_profile(player_id)

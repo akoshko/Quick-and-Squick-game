@@ -38,6 +38,8 @@ func _ready() -> void:
 	multiplayer.connected_to_server.connect(_on_connected)
 	multiplayer.server_disconnected.connect(func() -> void: _fail("server_disconnected"))
 	multiplayer.connection_failed.connect(func() -> void: _fail("connection_failed"))
+	if not _net.is_screen():
+		PlayerProfile.accessory_changed.connect(_send_accessory)
 	_net.set_link(_net.Link.CONNECTING)
 	_start()
 
@@ -185,7 +187,14 @@ func _on_connected() -> void:
 	print("NET: connected peer=%d after %.2fs" % [peer_id, _now() - _attempt_started])
 	if _mp is WebSocketMultiplayerPeer:
 		_net.register.rpc_id(1, TokenStore.load_or_create())
+	_send_accessory(PlayerProfile.accessory)
+	_send_accessory(PlayerProfile.nickname_color)
 	_net.set_link(_net.Link.CONNECTED)
+
+
+func _send_accessory(id: String) -> void:
+	if not _net.is_screen() and _connected and _mp.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+		_net.equip_accessory.rpc_id(1, id)
 
 
 func _send(type: String, data := {}) -> void:

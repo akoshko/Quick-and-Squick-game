@@ -6,10 +6,10 @@ extends Node
 ## в user://profile.cfg. При первом запуске ник выбирается случайно.
 ##
 ## Для сетевой игры: to_dict() — это всё, что нужно отправить другим
-## игрокам (два слова ника + три id внешности). На их стороне те же данные
-## проходят CharacterLook.sanitize() и применяются через Player.set_appearance().
+## игрокам (два слова ника, внешность, предмет и цвет ника).
 
 signal changed
+signal accessory_changed(id: String)
 
 const SAVE_PATH := "user://profile.cfg"
 
@@ -21,22 +21,50 @@ var nickname: String:
 var hoodie := "red"
 var hair_style := "short"
 var hair_color := "brown"
+var accessory := CharacterLook.STARTER_ACCESSORY
+var nickname_color := CharacterLook.DEFAULT_NICKNAME_COLOR
 
 
 func _ready() -> void:
+	GameManager.reward_achievements_synced.connect(_refresh_reward_choices)
 	randomize_nickname()   # если сохранённого профиля нет — случайный ник
 	load_profile()
 
 
 ## Готовая текстура персонажа для текущей внешности
 func texture() -> Texture2D:
-	return CharacterLook.build(hoodie, hair_style, hair_color)
+	return CharacterLook.build(hoodie, hair_style, hair_color, accessory)
 
 
 ## Данные профиля одним словарём — формат для сети и для Player.set_appearance()
 func to_dict() -> Dictionary:
 	return {"title_first": title_first, "title_second": title_second,
-			"hoodie": hoodie, "hair_style": hair_style, "hair_color": hair_color}
+			"hoodie": hoodie, "hair_style": hair_style, "hair_color": hair_color,
+			"accessory": accessory, "nickname_color": nickname_color}
+
+
+func equip_accessory(id: String) -> void:
+	if id == accessory or id == nickname_color or not can_equip_accessory(id):
+		return
+	if CharacterLook.NICKNAME_COLORS.has(id):
+		nickname_color = id
+	else:
+		accessory = id
+	accessory_changed.emit(id)
+
+
+func can_equip_accessory(id: String) -> bool:
+	var option := CharacterLook.accessory_option(id)
+	var achievement: StringName = option.get("achievement", &"")
+	return not option.is_empty() and (achievement == &"" or GameManager.has_achievement(achievement))
+
+
+func _refresh_reward_choices() -> void:
+	if not can_equip_accessory(accessory):
+		accessory = CharacterLook.STARTER_ACCESSORY
+	if not can_equip_accessory(nickname_color):
+		nickname_color = CharacterLook.DEFAULT_NICKNAME_COLOR
+	changed.emit()
 
 
 func set_nickname(first: String, second: String) -> void:

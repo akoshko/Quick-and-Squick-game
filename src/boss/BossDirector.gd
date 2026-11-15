@@ -15,7 +15,7 @@ extends Node
 ## Сеть: босс один на всех и живёт на сервере. Клиенты получают состояние директора
 ## (net_state: номер босса, точка, вид, здоровье, чем кончился) и по нему показывают своего
 ## «босса-изображение», полоску, задание и надпись; удар (E) выполняет сервер.
-## Победа засчитывается всем игрокам онлайн (у кого был виден босс).
+## Достижение получают игроки, нанёсшие урон на сервере.
 
 const BOSS_SCENE := preload("res://src/boss/BeanBagBoss.tscn")
 const FINISHED_QUEST_LINGER := 6.0   # с: столько выполненное задание босса висит в списке
@@ -45,6 +45,7 @@ var _count := 0
 var _bar: BossBar
 var _end_reason := EndReason.NONE   # чем кончился последний босс
 var _view_count := 0                # клиент: номер босса, которого сейчас показываем
+var _participants: Dictionary[String, bool] = {}
 
 
 func _ready() -> void:
@@ -105,11 +106,13 @@ func spawn_boss(at: BossSpawn = null) -> void:
 	_boss.title = _spawn.boss_title
 	_boss.position = _spawn.global_position
 	_boss.hp_changed.connect(_on_boss_hp_changed)
+	_boss.hit_by.connect(_on_boss_hit)
 	_boss.defeated.connect(_on_defeated)
 	_boss.left.connect(_on_left)
 	get_tree().current_scene.add_child(_boss)   # в сцену уровня — для y-sort
 
 	_count += 1
+	_participants.clear()
 	_end_reason = EndReason.NONE
 	_show_spawn(_count, _spawn, boss_hp)
 
@@ -130,8 +133,21 @@ func _on_boss_hp_changed(hp: int, max_hp: int) -> void:
 
 
 func _on_defeated() -> void:
+	if Net.is_server():
+		for token in _participants:
+			Net.award_player_achievement(token, &"boss_victory")
+	else:
+		GameManager.unlock_achievement(&"boss_victory")
 	_show_end(EndReason.DEFEATED)
 	_end_event(EndReason.DEFEATED)
+
+
+func _on_boss_hit(player: Player) -> void:
+	if Net.server == null or not is_instance_valid(player):
+		return
+	var token := Net.server.registry.token_for_player(String(player.name))
+	if token != "":
+		_participants[token] = true
 
 
 ## Убрать живого босса без победы (началось другое большое событие —
@@ -183,7 +199,6 @@ func _show_end(reason: EndReason) -> void:
 	match reason:
 		EndReason.DEFEATED:
 			Quests.complete(_quest_id)
-			GameManager.unlock_achievement(&"boss_victory")
 			_bar.show_banner("ВЕЛИКИЙ ВРАГ ПОВЕРЖЕН")
 			# Выполненное задание босса недолго висит в списке, потом убирается
 			get_tree().create_timer(FINISHED_QUEST_LINGER).timeout.connect(Quests.remove_quest.bind(_quest_id))

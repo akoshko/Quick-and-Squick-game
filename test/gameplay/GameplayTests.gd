@@ -51,6 +51,8 @@ func _run() -> void:
 	_journal = _game.get_node("QuestPanel")
 	_progress = _game.get_node("QuestProgress")
 	_test_profile()
+	await _test_journal_profile()
+	await _test_notification_overflow()
 	_test_network_profile()
 	_test_network_emotes()
 	await _test_map_and_input()
@@ -65,6 +67,7 @@ func _run() -> void:
 	_test_replay_suppresses_world_fx()
 	_test_client_bag_mirror()
 	await _test_client_boss_view()
+	await _test_server_boss_rewards()
 	await _test_client_zombie_view()
 	_test_world_sync_diff()
 	await _test_world_sync_glide()
@@ -104,15 +107,126 @@ func _test_profile() -> void:
 		"The local player uses the saved sprite and nickname")
 
 
+func _test_journal_profile() -> void:
+	var escape := InputEventKey.new()
+	escape.physical_keycode = KEY_ESCAPE
+	escape.pressed = true
+	get_viewport().push_input(escape)
+	_check(_journal.is_open() and get_tree().paused, "Esc opens the journal in solo play")
+	var tabs := _journal._tabs
+	var profile := tabs.get_node("Профиль") as ScrollContainer
+	await get_tree().process_frame
+	var profile_rect := tabs.get_tab_bar().get_tab_rect(tabs.get_tab_idx_from_control(profile))
+	_check(profile_rect.has_area() and profile_rect.end.x <= tabs.size.x,
+		"The profile tab is visible alongside the existing journal tabs in portrait mode")
+	tabs.current_tab = tabs.get_tab_idx_from_control(profile)
+	await get_tree().process_frame
+	_check(profile.is_visible_in_tree() and _journal._profile_preview.texture == PlayerProfile.texture()
+		and _journal._profile_name.text == PlayerProfile.nickname, "Profile tab shows the saved player appearance")
+	var inventory := _journal._profile_layout.get_child(0) as Control
+	var preview_panel := _journal._profile_layout.get_child(1) as Control
+	_check(preview_panel.position.y >= inventory.position.y + inventory.size.y,
+		"Portrait profile places the preview below the inventory")
+	var layout_rect := _journal._profile_layout.get_global_rect()
+	var profile_rect_global := profile.get_global_rect()
+	_check(layout_rect.position.x > profile_rect_global.position.x
+		and layout_rect.position.y > profile_rect_global.position.y
+		and layout_rect.end.x < profile_rect_global.end.x,
+		"The profile content is inset from the top and both sides")
+	var starter := _journal._accessory_slots[CharacterLook.STARTER_ACCESSORY]
+	var locked := _journal._accessory_slots[&"first_steps"]
+	_check(_journal._accessory_grid.get_child_count() == CharacterLook.ACCESSORIES.size()
+		and starter.modulate == Color.WHITE and locked.modulate.r < 1.0
+		and locked.disabled and locked.get_node("Content/Icon").texture == CharacterLook.accessory_icon("first_steps"),
+		"Each accessory has a visible icon and locked slots are dimmed")
+	var orange := _journal._accessory_slots[&"orange"]
+	var blue := _journal._accessory_slots[&"blue"]
+	var apple := _journal._accessory_slots[&"apple"]
+	var empty := _journal._accessory_slots[CharacterLook.NO_ACCESSORY]
+	orange.pressed.emit()
+	blue.pressed.emit()
+	_check(_journal._nickname_color_grid.get_child_count() == CharacterLook.NICKNAME_COLORS.size()
+		and orange.disabled and blue.disabled and PlayerProfile.nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR
+		and not _journal._accessory_slots.has(&"boss_victory") and apple.disabled
+		and not empty.disabled and empty.accessibility_name == "Нет аксессуара",
+		"Nickname rewards start locked and the removed medal has no inventory slot")
+	_check(_journal._profile_preview.get_parent().get_child_count() == 2,
+		"The profile preview contains the player sprite and nickname without reward descriptions")
+	var portrait_slot_side := starter.size.x
+	_check(portrait_slot_side > 0 and _journal._accessory_slots.values().all(
+		func(slot: Button) -> bool: return slot.size == Vector2(portrait_slot_side, portrait_slot_side)
+	), "Portrait slots are uniform squares across grids of different lengths and availability")
+	_check(empty.position.x < starter.position.x and starter.position.x < locked.position.x
+		and locked.position.y == empty.position.y and apple.position.y > empty.position.y
+		and apple.position.x == empty.position.x,
+		"Portrait inventory fills the first row left to right before wrapping")
+	var portrait_size := get_window().size
+	get_window().size = Vector2i(844, 390)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(preview_panel.position.x >= inventory.position.x + inventory.size.x,
+		"Landscape profile places the preview to the right of the inventory")
+	var preview_bounds := _journal._profile_preview.get_global_rect().merge(_journal._profile_name.get_global_rect())
+	_check(preview_bounds.get_center().distance_to(preview_panel.get_global_rect().get_center()) <= 1.0,
+		"The sprite and nickname are centered together in the preview panel")
+	var landscape_slot_side := starter.size.x
+	_check(landscape_slot_side > 0 and _journal._accessory_slots.values().all(
+		func(slot: Button) -> bool: return slot.size == Vector2(landscape_slot_side, landscape_slot_side)
+	), "Landscape slots remain uniform squares")
+	_check(locked.position.x < apple.position.x and apple.position.y == empty.position.y,
+		"The wider inventory fits all four items on one row")
+	get_window().size = portrait_size
+	tabs.current_tab = 0
+	get_viewport().push_input(escape)
+	_check(not _journal.is_open() and not get_tree().paused, "Esc closes the journal and resumes play")
+
+
+func _test_notification_overflow() -> void:
+	var popups := _journal._achievement_popups
+	_journal.open()
+	for i in 12:
+		_journal._show_notification("Новый аксессуар", "Награда %d" % i, QuestPanel.EARNED_MEDAL)
+	_journal.close()
+	await get_tree().process_frame
+	await get_tree().process_frame
+	var last := popups.get_child(-1) as Control
+	var last_timer := last.get_meta(&"dismiss_tween") as Tween
+	_check(not last_timer.is_running() and last.modulate.a == 0.0,
+		"Notifications beyond the portrait viewport wait with their timers paused")
+	var mobile := _game.get_node("MobileControls") as MobileControls
+	var bounds := popups.get_global_rect()
+	var bottom := mobile.top_edge(bounds.position.x, bounds.end.x)
+	_check(popups.get_children().all(func(card: Control) -> bool:
+		return card.modulate.a == 0.0 or card.get_global_rect().end.y <= bottom),
+		"Visible notifications leave the portrait touch controls clear")
+	for card in popups.get_children():
+		var timer := card.get_meta(&"dismiss_tween") as Tween
+		if timer.is_running():
+			timer.custom_step(5.4)
+	await get_tree().process_frame
+	await get_tree().process_frame
+	await get_tree().process_frame
+	_check(is_instance_valid(last) and last_timer.is_running() and last.modulate.a > 0.0,
+		"Once visible notifications expire, the queued notifications become visible and start their timers")
+	for card in popups.get_children():
+		card.queue_free()
+	await get_tree().process_frame
+
+
 func _test_network_profile() -> void:
 	var valid := PlayerRegistry.clean_profile({"title_first": " Сонный ", "title_second": "Кодер",
-		"hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink"}, 3)
-	_check(valid == {"name": "Сонный Кодер", "hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink"},
+		"hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink", "accessory": "first_steps",
+		"nickname_color": "orange"}, 3, {&"first_steps": true})
+	_check(valid == {"name": "Сонный Кодер", "hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink",
+		"accessory": "first_steps", "nickname_color": "orange"},
 		"Server keeps a valid network profile and trims its nickname words")
 	var forged := PlayerRegistry.clean_profile({"title_first": "<b>Админ</b>", "title_second": "Кодер",
-		"hoodie": "gold", "hair_style": 5, "hair_color": null}, 7)
+		"hoodie": "gold", "hair_style": 5, "hair_color": null, "accessory": {"name": "fake"},
+		"nickname_color": "#ff0000"}, 7)
 	_check(forged.name == "Игрок 7" and forged.hoodie == CharacterLook.HOODIES[0].id
-		and forged.hair_style == CharacterLook.HAIR_STYLES[0].id and forged.hair_color == CharacterLook.HAIR_COLORS[0].id,
+		and forged.hair_style == CharacterLook.HAIR_STYLES[0].id and forged.hair_color == CharacterLook.HAIR_COLORS[0].id
+		and forged.accessory == CharacterLook.STARTER_ACCESSORY
+		and forged.nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR,
 		"Server replaces an unknown nickname with «Игрок N» and unknown looks with defaults")
 	_check(PlayerRegistry.clean_profile("not a dictionary", 2).name == "Игрок 2", "Server survives a malformed profile")
 	var longest := 0
@@ -123,15 +237,43 @@ func _test_network_profile() -> void:
 
 	var registry := PlayerRegistry.new()
 	var token := "token-0000000000000001"
-	var joined := registry.admit(token, "player", 0.0, {"title_first": "Тайный", "title_second": "Енот", "hoodie": "pink"})
+	var requested := {"title_first": "Тайный", "title_second": "Енот", "hoodie": "pink",
+		"accessory": "apple", "nickname_color": "blue"}
+	var joined := registry.admit(token, "player", 0.0, requested)
 	registry.bind_peer(joined.player_id, 2)
+	var initial := registry.profile_of(joined.player_id)
+	_check(initial.accessory == CharacterLook.STARTER_ACCESSORY and initial.nickname_color == "white",
+		"Joining with locked rewards falls back to the starter appearance")
+	_check(registry.equip_accessory(2, "apple") == "" and registry.equip_accessory(2, "blue") == "",
+		"Live equip requests cannot bypass the achievement requirement")
+	_check(registry.equip_accessory(7, "blue") == "" and registry.equip_accessory(2, "boss_victory") == "",
+		"Only registered peers can equip catalog accessories")
+	registry.award_achievement(token, &"first_steps")
+	registry.award_achievement(token, &"boss_victory")
+	_check(registry.equip_accessory(2, "first_steps") == joined.player_id,
+		"Selecting an accessory updates the sender's registered profile")
+	_check(registry.equip_accessory(2, "blue") == joined.player_id
+		and registry.profile_of(joined.player_id).accessory == "first_steps",
+		"Selecting a nickname color updates the network profile independently of the worn item")
 	registry.peer_lost(2, 1.0)
 	registry.admit(token, "player", 2.0)
 	var rec: Dictionary = registry.records()[0]
 	_check(rec.name == "Тайный Енот" and rec.skin == "pink/%s/%s" % [CharacterLook.HAIR_STYLES[0].id, CharacterLook.HAIR_COLORS[0].id],
 		"Registry keeps the profile as the name and skin source across a reconnect")
+	_check(rec.profile.accessory == "first_steps" and rec.profile.nickname_color == "blue",
+		"Registry retains both choices when reconnecting without a new profile")
+	registry.bind_peer(joined.player_id, 2)
+	registry.equip_accessory(2, CharacterLook.NO_ACCESSORY)
+	registry.equip_accessory(2, CharacterLook.DEFAULT_NICKNAME_COLOR)
+	_check(registry.profile_of(joined.player_id).accessory == CharacterLook.NO_ACCESSORY
+		and registry.profile_of(joined.player_id).nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR,
+		"The server accepts removal of both accessory types")
 	registry.admit(token, "player", 3.0, {"title_first": "Бодрый", "title_second": "Ёжик"})
 	_check(registry.profile_of(joined.player_id).name == "Бодрый Ёжик", "A rejoin with a new profile updates it")
+	registry.admit(token, "player", 4.0, requested)
+	var returning := registry.profile_of(joined.player_id)
+	_check(returning.accessory == CharacterLook.STARTER_ACCESSORY and returning.nickname_color == "blue",
+		"Rejoining accepts earned rewards and rejects other catalog items")
 
 	var remote: Player = load("res://src/player/Player.tscn").instantiate()
 	remote.visible = false
@@ -139,8 +281,24 @@ func _test_network_profile() -> void:
 	_game.add_child(remote)
 	_check(remote._label.text == "Игрок 4", "A network player without a profile is labelled «Игрок N»")
 	remote.profile = valid
-	_check(remote._label.text == "Сонный Кодер" and remote._sprite.texture == CharacterLook.build("blue", "mohawk", "pink"),
+	_check(remote._label.text == "Сонный Кодер"
+		and remote._label.get_theme_color("font_color") == CharacterLook.nickname_tint("orange")
+		and remote._sprite.texture == CharacterLook.build("blue", "mohawk", "pink", "first_steps"),
 		"A replicated profile sets the network player's look and nickname label")
+	var badge_texture := remote._sprite.texture
+	remote.profile = valid.merged({"accessory": CharacterLook.STARTER_ACCESSORY}, true)
+	_check(remote._sprite.texture.get_image().get_pixel(16, 21) != badge_texture.get_image().get_pixel(16, 21),
+		"A replicated accessory change visibly changes the remote player's sprite")
+	var starter_texture := remote._sprite.texture
+	remote.profile = remote.profile.merged({"nickname_color": "blue"}, true)
+	_check(remote._label.get_theme_color("font_color") == CharacterLook.nickname_tint("blue")
+		and remote._sprite.texture == starter_texture,
+		"A replicated nickname color change leaves the worn item alone")
+	remote.profile = remote.profile.merged({"accessory": CharacterLook.NO_ACCESSORY, "nickname_color": "white"}, true)
+	_check(remote._sprite.texture.get_image().get_pixel(16, 21)
+		== CharacterLook.build("blue", "mohawk", "pink").get_image().get_pixel(16, 21)
+		and remote._label.get_theme_color("font_color") == Color.WHITE,
+		"Remote players see an unadorned sprite and white nickname after a reset")
 	remote.free()
 
 
@@ -266,6 +424,34 @@ func _test_quests() -> void:
 	_check(_progress._done_icon.custom_minimum_size.x >= _progress._status.get_theme_font_size("font_size"),
 		"Completed quest HUD checkmark is at least as large as its status text")
 	_check(GameManager.has_achievement(&"first_steps"), "Main quest awards First Steps")
+	var badge := _journal._accessory_slots[&"first_steps"]
+	_check(badge.modulate == Color.WHITE and not badge.disabled,
+		"Completing the office quest makes its accessory available in the profile")
+	var reward_popups := _journal._achievement_popups.get_children()
+	var reward_names: Array[String] = []
+	for notification in reward_popups:
+		if notification.get_node("Row/Labels/Title").text == "Новый аксессуар":
+			reward_names.append(notification.get_node("Row/Labels/Description").text)
+	_check(reward_names == ["Значок новичка", "Цвет ника: оранжевый"],
+		"The training achievement announces both rewards in inventory order")
+	badge.pressed.emit()
+	_check(PlayerProfile.to_dict().accessory == "first_steps" and _player._sprite.texture == PlayerProfile.texture()
+		and _journal._profile_preview.texture == PlayerProfile.texture(),
+		"Equipping an unlocked accessory updates the local player, profile, and network payload")
+	var orange := _journal._accessory_slots[&"orange"]
+	_check(not orange.disabled, "Completing training unlocks the orange nickname color")
+	orange.pressed.emit()
+	var orange_tint := CharacterLook.nickname_tint("orange")
+	_check(PlayerProfile.to_dict().nickname_color == "orange" and PlayerProfile.accessory == "first_steps"
+		and _player._nameplate.get_theme_color("font_color") == orange_tint
+		and _journal._profile_name.get_theme_color("font_color") == orange_tint,
+		"Equipping orange updates the local nameplate and preview while retaining the worn item")
+	_journal._accessory_slots[CharacterLook.NO_ACCESSORY].pressed.emit()
+	_check(PlayerProfile.accessory == CharacterLook.NO_ACCESSORY and PlayerProfile.nickname_color == "orange"
+		and _player._nameplate.get_theme_color("font_color") == orange_tint
+		and _journal._profile_preview.texture == PlayerProfile.texture() and not badge.disabled and not orange.disabled,
+		"Choosing no wearable accessory removes the badge independently of nickname color")
+	badge.pressed.emit()
 	npc.interact(_player)
 	_check(npc._label.text == "Привет!", "Quest-gated NPC switches to a greeting after completion")
 	npc.interact(_player)
@@ -304,6 +490,10 @@ func _test_quests() -> void:
 	_check(not laptop.is_empty and laptop._pokes == 0, "Moderator reaches and repairs the laptop")
 
 	var snacks: Array = _game.get_node("ZoneSnack").get_stations()
+	var apple := _journal._accessory_slots[&"apple"]
+	var steve_title: Label = _journal._cards_by_id[&"steve_jobs"].get_node("Row/Labels/Title")
+	_check(apple.disabled and steve_title.text == "Скрытое достижение",
+		"The apple starts locked and its achievement title is hidden")
 	for kind in [SnackStation.Kind.APPLE, SnackStation.Kind.COOKIE]:
 		var id := &"steve_jobs" if kind == SnackStation.Kind.APPLE else &"clean_cookies"
 		var matching := snacks.filter(func(snack: SnackStation) -> bool: return snack.kind == kind)
@@ -315,6 +505,18 @@ func _test_quests() -> void:
 			_check(snack.is_empty, "Eating all portions empties a snack station")
 			_check(GameManager.has_achievement(id) == (i == matching.size() - 1),
 				"Snack achievement waits for the final station: " + String(id))
+			if kind == SnackStation.Kind.APPLE:
+				_check(apple.disabled == (i < matching.size() - 1), "The apple badge follows the apple achievement")
+		if kind == SnackStation.Kind.APPLE:
+			var notification := _journal._achievement_popups.get_child(-1)
+			_check(steve_title.text == "Стив Джобс"
+				and notification.get_node("Row/Labels/Description").text == "Яблоко",
+				"Unlocking the hidden achievement reveals its title and announces the apple badge")
+	apple.pressed.emit()
+	_check(PlayerProfile.accessory == "apple" and _player._sprite.texture == PlayerProfile.texture()
+		and CharacterLook.accessory_icon("apple").get_size() == Vector2(5, 6),
+		"The unlocked apple can be worn at the smaller size")
+	_journal._accessory_slots[&"first_steps"].pressed.emit()
 	_check(Quests.all_done(), "Completing the snack and laptop quests finishes the initial quest list")
 	var refill: SnackStation = snacks.front()
 	refill.refill()
@@ -405,10 +607,19 @@ func _test_boss() -> void:
 
 	var popups := _journal._achievement_popups
 	var recent := popups.get_child_count()
-	_journal.show_achievement_notification("Первое", QuestPanel.EARNED_MEDAL)
-	_journal.show_achievement_notification("Второе", QuestPanel.EARNED_MEDAL)
+	_journal._show_notification("Новое достижение", "Первое", QuestPanel.EARNED_MEDAL)
+	_journal.open()
+	_journal._show_notification("Новый аксессуар", "Второе", CharacterLook.accessory_icon("blue"))
 	var first := popups.get_child(recent) as Control
 	var second := popups.get_child(recent + 1) as Control
+	var first_timer: Tween = first.get_meta(&"dismiss_tween")
+	var second_timer: Tween = second.get_meta(&"dismiss_tween")
+	_check(get_tree().paused and not popups.visible and not first_timer.is_running() and not second_timer.is_running(),
+		"The journal pauses notifications that arrived before and while it was open")
+	await _wait(5.5)
+	_journal.close()
+	_check(popups.visible and is_instance_valid(first) and is_instance_valid(second),
+		"Opening and closing the journal preserves both notifications")
 	await get_tree().process_frame
 	await get_tree().process_frame
 	_check(first.get_node("Row/Labels/Description").text == "Первое"
@@ -421,18 +632,19 @@ func _test_boss() -> void:
 			and not rect.intersects(_progress._panel.get_global_rect())
 			and not rect.intersects(_progress._open_button.get_global_rect()),
 			"Each portrait notification leaves the boss bar and quest controls clear")
-	_journal.open()
-	_check(get_tree().paused and not popups.visible, "Notifications hide while the journal is open")
-	await _wait(5.5)
-	_journal.close()
-	_check(popups.visible and is_instance_valid(first) and is_instance_valid(second),
-		"Opening and closing the journal preserves both notifications")
-
 	for i in range(boss.hp):
 		await _wait(0.55)
 		boss.interact(_player)
 	_check(Quests.is_done(quest_id) and GameManager.has_achievement(&"boss_victory"),
 		"Defeating the boss completes its quest and awards the achievement")
+	var blue := _journal._accessory_slots[&"blue"]
+	_check(not blue.disabled, "Defeating the mimic makes the blue nickname available")
+	blue.pressed.emit()
+	_check(PlayerProfile.nickname_color == "blue" and PlayerProfile.accessory == "first_steps"
+		and _player._nameplate.get_theme_color("font_color") == CharacterLook.nickname_tint("blue"),
+		"Equipping the mimic reward sets the blue nameplate and leaves the worn item in place")
+	_check(popups.get_child(-1).get_node("Row/Labels/Description").text == "Цвет ника: синий",
+		"The mimic achievement announces the blue nickname reward")
 	await _wait(0.85)
 	_check(director._boss == null and director._bar.health_bottom() == 0 and not snack._locked,
 		"Boss defeat hides its health bar and releases the knocked stations")
@@ -599,12 +811,54 @@ func _test_client_boss_view() -> void:
 	view.apply_net_state(net_boss)
 	_check(shown != null and shown.hp == 2 and view._bar.current_hp() == 2.0,
 		"A server hit lowers the boss health on the client")
+	GameManager._unlocked_achievements.erase(&"boss_victory")
 	view.apply_net_state({BossDirector.KEY_NUMBER: 99, BossDirector.KEY_END_REASON: BossDirector.EndReason.DEFEATED})
 	_check(view._boss == null and Quests.is_done("boss_99") and view._bar.banner_text() == "ВЕЛИКИЙ ВРАГ ПОВЕРЖЕН",
 		"A server defeat completes the client's boss quest and shows the banner")
+	_check(not GameManager.has_achievement(&"boss_victory"), "A spectator does not earn the boss achievement from world replication")
+	GameManager._unlocked_achievements[&"boss_victory"] = true
 	await _wait(1.0)
 	_check(not is_instance_valid(shown), "The defeated boss image is removed")
 	view.free()
+
+
+func _test_server_boss_rewards() -> void:
+	var director: BossDirector = _game.get_node("BossDirector")
+	director.dismiss_boss()
+	await _wait(0.9)
+	Net.server = NetServer.new()
+	var registry := Net.server.registry
+	var first_token := "boss-player-00001"
+	var second_token := "boss-player-00002"
+	var observer_token := "boss-observer-00001"
+	var first := Player.new()
+	first.name = registry.admit(first_token, "player", 0.0).player_id
+	registry.bind_peer(first.name, 2)
+	var second := Player.new()
+	second.name = registry.admit(second_token, "player", 0.0).player_id
+	registry.admit(observer_token, "player", 0.0)
+	_in_mode(NetConfig.Mode.SERVER, func() -> void:
+		director.spawn_boss(director.get_node("SpawnHall"))
+		var boss := director._boss
+		boss.interact(first)
+		boss.interact(second)
+		_check(director._participants.size() == 1, "An invulnerable hit does not qualify as damage")
+		registry.peer_lost(2, 1.0)
+		registry.expire(1.0 + PlayerRegistry.HOLD_SECONDS)
+		while boss.hp > 0:
+			boss._invulnerable = 0.0
+			boss.interact(second))
+	_check(registry.achievements_of(first_token).has(&"boss_victory")
+		and registry.achievements_of(second_token).has(&"boss_victory")
+		and not registry.achievements_of(observer_token).has(&"boss_victory"),
+		"The server awards both damage dealers, including a disconnected player, and excludes observers")
+	var rejoined := registry.admit(first_token, "player", 100.0, {"nickname_color": "blue"})
+	_check(registry.profile_of(rejoined.player_id).nickname_color == "blue",
+		"A participant can reconnect after victory and equip the reward even after their old slot expired")
+	first.free()
+	second.free()
+	Net.server.free()
+	Net.server = null
 
 
 # Клиент: зомби встаёт и ложится по состоянию с сервера
@@ -692,8 +946,25 @@ func _test_server_forwards_personal() -> void:
 	Quests.add_quest(quest_id, "Сетевое задание", false)
 	var child_count_before := _game.get_child_count()
 	var pokes: int = laptop._pokes
+	Net.server = NetServer.new()
+	var token := "tutorial-player-001"
+	var registry := Net.server.registry
+	var player_id: String = registry.admit(token, "player", 0.0).player_id
+	registry.bind_peer(player_id, FAKE_PEER)
 	_as_server(ws, func() -> void:
-		_player._interact()
+		_player._interact_actor_peer = FAKE_PEER
+		Net.as_actor(FAKE_PEER, Quests.complete.bind("push_bean_bag"))
+		_check(registry.tutorial_step_of(player_id) == 0, "The server ignores a tutorial step attempted out of order")
+		for i in npc.lines.size():
+			Net.as_actor(FAKE_PEER, _player._interact)
+		_check(registry.tutorial_step_of(player_id) == 0, "The tutorial dialogue must be finished on the server")
+		Net.as_actor(FAKE_PEER, _player._interact)
+		_check(registry.tutorial_step_of(player_id) == 1, "The server records the completed tutorial dialogue")
+		Net.as_actor(FAKE_PEER, Quests.complete.bind("push_bean_bag"))
+		_check(registry.achievements_of(token).has(&"first_steps")
+			and registry.equip_accessory(FAKE_PEER, "orange") == player_id,
+			"The server grants the tutorial accessory only after both steps")
+		_player._interact_actor_peer = 0
 		Net.as_actor(FAKE_PEER, laptop.interact.bind(_player))
 		Quests.complete(quest_id)
 		Net.as_actor(FAKE_PEER, GameManager.unlock_achievement.bind(&"net_test_achievement"))
@@ -704,6 +975,10 @@ func _test_server_forwards_personal() -> void:
 	_check(Quests.find(quest_id) != null and not Quests.is_done(quest_id)
 		and not GameManager.has_achievement(&"net_test_achievement"),
 		"The server forwards quests and achievements instead of keeping them")
+	_check(registry.achievements_of(token).has(&"net_test_achievement"),
+		"Server-earned achievements are recorded for the acting player")
+	Net.server.free()
+	Net.server = null
 	Quests.remove_quest(quest_id)
 	_check(_game.get_child_count() == child_count_before, "The server sends world effects instead of creating them")
 	_player._interact()

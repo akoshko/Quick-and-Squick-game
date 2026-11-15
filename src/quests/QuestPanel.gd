@@ -14,7 +14,6 @@ const ACHIEVEMENTS := {
 	&"hide_and_seek": ["А я тебя вижу!", "Пройти квест «Прятки».", true],
 	&"zombie_apocalypse": ["Третий день хакатона", "Пережить зомби-апокалипсис: собрать хотя бы один стаканчик кофе.", true],
 }
-
 @export var font_ratio := 0.032
 
 var _root: Control
@@ -22,6 +21,12 @@ var _was_paused := false
 var _panel: PanelContainer
 var _list: Tree
 var _tabs: TabContainer
+var _profile_layout: BoxContainer
+var _accessory_grid: GridContainer
+var _nickname_color_grid: GridContainer
+var _profile_preview: TextureRect
+var _profile_name: Label
+var _accessory_slots: Dictionary[StringName, Button] = {}
 var _achievement_cards: VBoxContainer
 var _achievement_popups: VBoxContainer
 var _cards_by_id: Dictionary[StringName, PanelContainer] = {}
@@ -37,6 +42,8 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build()
 	GameManager.achievement_unlocked.connect(_on_achievement_unlocked)
+	PlayerProfile.changed.connect(_refresh_profile)
+	PlayerProfile.accessory_changed.connect(_refresh_profile)
 	_boss_bar = get_tree().get_first_node_in_group("boss_bar") as BossBar
 	if _boss_bar:
 		_boss_bar.health_layout_changed.connect(_layout_achievement_popups)
@@ -91,6 +98,11 @@ func _build() -> void:
 	_tabs = TabContainer.new()
 	_tabs.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	box.add_child(_tabs)
+	for style_name in [&"tab_selected", &"tab_unselected", &"tab_hovered", &"tab_disabled"]:
+		var tab_style := _tabs.get_theme_stylebox(style_name).duplicate() as StyleBox
+		tab_style.content_margin_left = 6
+		tab_style.content_margin_right = 6
+		_tabs.add_theme_stylebox_override(style_name, tab_style)
 
 	_list = Tree.new()
 	_list.name = "Задания"
@@ -98,14 +110,129 @@ func _build() -> void:
 	_list.item_selected.connect(_select_quest)
 	_tabs.add_child(_list)
 	_build_achievements()
+	_build_profile()
 
 	_root.hide()
 
 	_achievement_popups = VBoxContainer.new()
+	_achievement_popups.sort_children.connect(_update_notification_timers)
 	_achievement_popups.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_achievement_popups)
 	_achievement_popups.set_anchors_and_offsets_preset(Control.PRESET_TOP_RIGHT)
 	_achievement_popups.grow_horizontal = Control.GROW_DIRECTION_BEGIN
+
+
+func _build_profile() -> void:
+	var scroll := ScrollContainer.new()
+	scroll.name = "Профиль"
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	_tabs.add_child(scroll)
+
+	var inset := MarginContainer.new()
+	inset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(inset)
+
+	_profile_layout = BoxContainer.new()
+	inset.add_child(_profile_layout)
+
+	var inventory := VBoxContainer.new()
+	inventory.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	_profile_layout.add_child(inventory)
+
+	_accessory_grid = _build_accessory_grid(inventory, "Предметы", CharacterLook.ACCESSORIES.keys())
+	_nickname_color_grid = _build_accessory_grid(inventory, "Цвет ника", CharacterLook.NICKNAME_COLORS.keys())
+
+	var preview_panel := PanelContainer.new()
+	preview_panel.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	var preview_style := StyleBoxFlat.new()
+	preview_style.bg_color = Color(0.12, 0.13, 0.17)
+	preview_panel.add_theme_stylebox_override("panel", preview_style)
+	_profile_layout.add_child(preview_panel)
+
+	var content := VBoxContainer.new()
+	content.alignment = BoxContainer.ALIGNMENT_CENTER
+	preview_panel.add_child(content)
+
+	_profile_preview = TextureRect.new()
+	_profile_preview.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_profile_preview.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_profile_preview.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	content.add_child(_profile_preview)
+
+	_profile_name = Label.new()
+	_profile_name.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_profile_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	content.add_child(_profile_name)
+
+	_refresh_profile()
+
+
+func _build_accessory_grid(inventory: VBoxContainer, title: String, ids: Array) -> GridContainer:
+	var section := VBoxContainer.new()
+	inventory.add_child(section)
+	var heading := Label.new()
+	heading.text = title
+	heading.add_theme_color_override("font_color", GOLD)
+	section.add_child(heading)
+	var grid := GridContainer.new()
+	section.add_child(grid)
+	for id: String in ids:
+		var slot := Button.new()
+		slot.pressed.connect(PlayerProfile.equip_accessory.bind(id))
+		var style := StyleBoxFlat.new()
+		style.bg_color = Color(0.14, 0.15, 0.20)
+		style.set_border_width_all(1)
+		for state in [&"normal", &"hover", &"pressed", &"disabled"]:
+			slot.add_theme_stylebox_override(state, style)
+		grid.add_child(slot)
+
+		var content := VBoxContainer.new()
+		content.name = "Content"
+		content.alignment = BoxContainer.ALIGNMENT_CENTER
+		content.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		slot.add_child(content)
+		content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+		content.offset_left = 3
+		content.offset_right = -3
+
+		var icon := TextureRect.new()
+		icon.name = "Icon"
+		icon.texture = CharacterLook.accessory_icon(id)
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		icon.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		content.add_child(icon)
+
+		var label := Label.new()
+		label.name = "Title"
+		label.text = CharacterLook.accessory_option(id).title
+		label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		content.add_child(label)
+		_accessory_slots[id] = slot
+	return grid
+
+
+func _refresh_profile(_id := "") -> void:
+	_profile_preview.texture = PlayerProfile.texture()
+	_profile_name.text = PlayerProfile.nickname
+	_profile_name.add_theme_color_override("font_color", CharacterLook.nickname_tint(PlayerProfile.nickname_color))
+	for id: String in _accessory_slots:
+		_refresh_accessory(id)
+
+
+func _refresh_accessory(id: String) -> void:
+	var title: String = CharacterLook.accessory_option(id).title
+	var available := PlayerProfile.can_equip_accessory(id)
+	var slot := _accessory_slots[id]
+	slot.accessibility_name = title if available else "%s, закрыто" % title
+	slot.disabled = not available
+	slot.modulate = Color.WHITE if available else Color(0.65, 0.65, 0.65)
+	var style := slot.get_theme_stylebox("normal") as StyleBoxFlat
+	var equipped := id == PlayerProfile.accessory or id == PlayerProfile.nickname_color
+	style.border_color = GOLD if equipped else Color(0.25, 0.26, 0.33)
 
 
 func _build_achievements() -> void:
@@ -183,15 +310,22 @@ func _set_card_content(card: PanelContainer, icon: Texture2D, title: String,
 
 
 func _on_achievement_unlocked(id: StringName) -> void:
-	if not _cards_by_id.has(id):
-		return
-	_refresh_achievement(id)
-	show_achievement_notification(ACHIEVEMENTS[id][0], EARNED_MEDAL)
+	if _cards_by_id.has(id):
+		_refresh_achievement(id)
+		_show_notification("Новое достижение", ACHIEVEMENTS[id][0], EARNED_MEDAL)
+	for accessory_id: String in _accessory_slots:
+		var option := CharacterLook.accessory_option(accessory_id)
+		if option.get("achievement") == id:
+			_refresh_accessory(accessory_id)
+			var title: String = option.title
+			if CharacterLook.NICKNAME_COLORS.has(accessory_id):
+				title = "Цвет ника: " + title.to_lower()
+			_show_notification("Новый аксессуар", title, CharacterLook.accessory_icon(accessory_id))
 
 
-func show_achievement_notification(achievement_title: String, icon: Texture2D) -> void:
+func _show_notification(title: String, description: String, icon: Texture2D) -> void:
 	var card := _make_achievement_card()
-	_set_card_content(card, icon, "Новое достижение", achievement_title, GOLD, Color.WHITE)
+	_set_card_content(card, icon, title, description, GOLD, Color.WHITE)
 	for control in card.find_children("*", "Control", true, false):
 		control.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	card.mouse_filter = Control.MOUSE_FILTER_IGNORE
@@ -203,6 +337,37 @@ func show_achievement_notification(achievement_title: String, icon: Texture2D) -
 	tween.tween_interval(5.0)
 	tween.tween_property(card, "modulate:a", 0.0, 0.3)
 	tween.tween_callback(card.queue_free)
+	card.set_meta(&"dismiss_tween", tween)
+	card.set_meta(&"queued_alpha", 1.0)
+	card.modulate.a = 0.0
+	tween.pause()
+
+
+func _set_notifications_visible(show_notifications: bool) -> void:
+	_achievement_popups.visible = show_notifications
+	_update_notification_timers()
+
+
+func _update_notification_timers() -> void:
+	var bottom := get_viewport().get_visible_rect().end.y
+	var mobile := get_tree().get_first_node_in_group("mobile_controls") as MobileControls
+	if mobile != null:
+		var bounds := _achievement_popups.get_global_rect()
+		bottom = mobile.top_edge(bounds.position.x, bounds.end.x)
+	for card in _achievement_popups.get_children():
+		var tween := card.get_meta(&"dismiss_tween", null) as Tween
+		if tween == null or not tween.is_valid():
+			continue
+		if _achievement_popups.visible and card.size.y > 0.0 and card.get_global_rect().end.y <= bottom:
+			if card.has_meta(&"queued_alpha"):
+				card.modulate.a = card.get_meta(&"queued_alpha")
+				card.remove_meta(&"queued_alpha")
+			tween.play()
+		else:
+			if not card.has_meta(&"queued_alpha"):
+				card.set_meta(&"queued_alpha", card.modulate.a)
+				card.modulate.a = 0.0
+			tween.pause()
 
 
 func _layout() -> void:
@@ -229,6 +394,37 @@ func _layout() -> void:
 	_heading.add_theme_font_size_override("font_size", int(font * 1.1))
 	_close_button.add_theme_font_size_override("font_size", font)
 	_tabs.add_theme_font_size_override("font_size", font)
+	_heading.get_parent().add_theme_constant_override("separation", roundi(font * 0.4))
+	_profile_layout.vertical = size.y > size.x
+	_profile_layout.add_theme_constant_override("separation", font)
+	var inset := _profile_layout.get_parent() as MarginContainer
+	var padding := roundi(font * 0.5)
+	for margin in [&"margin_left", &"margin_top", &"margin_right", &"margin_bottom"]:
+		inset.add_theme_constant_override(margin, padding)
+	var inventory := _profile_layout.get_child(0) as VBoxContainer
+	inventory.add_theme_constant_override("separation", roundi(font * 0.8))
+	var slot_side := roundi(font * 5.25)
+	var slot_gap := roundi(font * 0.4)
+	var inventory_width := _panel.custom_minimum_size.x - style.get_minimum_size().x - padding * 2
+	if not _profile_layout.vertical:
+		inventory_width = (inventory_width - font) * 0.5
+	for grid in [_accessory_grid, _nickname_color_grid]:
+		grid.get_parent().add_theme_constant_override("separation", slot_gap)
+		grid.add_theme_constant_override("h_separation", slot_gap)
+		grid.add_theme_constant_override("v_separation", slot_gap)
+		grid.columns = clampi(floori((inventory_width + slot_gap) / (slot_side + slot_gap)), 1, grid.get_child_count())
+	var preview := _profile_layout.get_child(1) as PanelContainer
+	var preview_style := preview.get_theme_stylebox("panel") as StyleBoxFlat
+	preview_style.set_content_margin_all(roundi(font * 0.7))
+	_profile_preview.custom_minimum_size.y = font * 8
+	for label in _profile_layout.find_children("*", "Label", true, false):
+		label.add_theme_font_size_override("font_size", font)
+	var slot_font := maxi(8, roundi(font * 0.78))
+	for slot in _accessory_slots.values():
+		slot.custom_minimum_size = Vector2(slot_side, slot_side)
+		var content := slot.get_child(0) as VBoxContainer
+		content.get_node("Icon").custom_minimum_size.y = roundi(font * 1.8)
+		content.get_node("Title").add_theme_font_size_override("font_size", slot_font)
 
 	_achievement_cards.add_theme_constant_override("separation", roundi(font * 0.35))
 	for card in _achievement_cards.get_children():
@@ -240,8 +436,12 @@ func _layout_achievement_popups() -> void:
 	var size := get_viewport().get_visible_rect().size
 	var font := maxi(8, int(minf(size.y, size.x * 1.45) * font_ratio))
 	_achievement_popups.add_theme_constant_override("separation", roundi(font * 0.35))
+	var portrait := size.y > size.x
+	var card_font := maxi(8, roundi(font * 0.78)) if portrait else font
 	for card in _achievement_popups.get_children():
-		_layout_achievement_card(card, font)
+		_layout_achievement_card(card, card_font)
+		if portrait:
+			card.get_node("Row/Medal").custom_minimum_size.x = roundi(font * 1.5)
 	var margin := float(font)
 	var width := minf(font * 16.0, size.x * 0.35)
 	var top := margin
@@ -255,6 +455,7 @@ func _layout_achievement_popups() -> void:
 	_achievement_popups.offset_right = -margin
 	_achievement_popups.offset_top = top
 	_achievement_popups.offset_bottom = top
+	_update_notification_timers.call_deferred()
 
 
 func _layout_achievement_card(card: PanelContainer, font: int) -> void:
@@ -338,7 +539,7 @@ func open() -> void:
 		_was_paused = get_tree().paused
 		get_tree().paused = true
 	_root.show()
-	_achievement_popups.hide()
+	_set_notifications_visible(false)
 	_close_button.grab_focus()
 
 
@@ -351,7 +552,7 @@ func close() -> void:
 	_root.hide()
 	if not Net.is_network():
 		get_tree().paused = _was_paused
-	_achievement_popups.show()
+	_set_notifications_visible(true)
 
 
 ## Открыт ли журнал (в сети ввод своему персонажу на это время не уходит)

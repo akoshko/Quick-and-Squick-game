@@ -49,6 +49,7 @@ const ARROW_HEIGHT := 13.0
 const ARROWS := {"left": Vector2.LEFT, "right": Vector2.RIGHT, "up": Vector2.UP, "down": Vector2.DOWN}
 
 var _line_index := -1
+var _server_dialogue_steps: Dictionary[Player, int] = {}
 var _talking_to: Player
 var _bubble: Node2D
 var _panel: PanelContainer
@@ -75,6 +76,21 @@ func _ready() -> void:
 		add_child(_sprite)
 	_build_bubble()
 	_idle_time = randf() * TAU   # случайная фаза — NPC «дышат» не синхронно
+
+
+func tracks_server_interaction() -> bool:
+	return quest_id == "talk_npc"
+
+
+func track_server_interaction(player: Player) -> void:
+	if not tracks_server_interaction():
+		return
+	var step: int = _server_dialogue_steps.get(player, 0)
+	if step < lines.size():
+		_server_dialogue_steps[player] = step + 1
+		return
+	_server_dialogue_steps.erase(player)
+	Quests.complete(quest_id)
 
 
 func interact(player: Player) -> void:
@@ -126,6 +142,9 @@ func set_dialogue(new_lines: PackedStringArray) -> void:
 
 
 func _process(delta: float) -> void:
+	for player in _server_dialogue_steps.keys():
+		if not is_instance_valid(player) or player.held or not player.can_reach(self):
+			_server_dialogue_steps.erase(player)
 	# Анимация покоя: спрайт сжимаем напрямую, рисунок кодом — перерисовываем
 	if not _idle_paused():
 		_idle_time += delta * idle_speed

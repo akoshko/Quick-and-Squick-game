@@ -117,10 +117,16 @@ func _on_player_joined(player_id: String, _peer_id: int) -> void:
 	var p := _player(player_id)
 	if p != null:
 		p.held = false   # вернулся из удержания: тот же персонаж и место
-		p.profile = _net.server.registry.profile_of(player_id)   # мог сменить профиль, перезагрузив страницу
+		refresh_player_profile(player_id)
 	else:
 		_spawn(player_id, _number_of(player_id))
 	_update_player_count()
+
+
+func refresh_player_profile(player_id: String) -> void:
+	var p := _player(player_id)
+	if p != null:
+		p.profile = _net.server.registry.profile_of(player_id)
 
 
 func _on_player_held(player_id: String) -> void:

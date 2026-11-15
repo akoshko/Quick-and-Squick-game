@@ -74,8 +74,8 @@ var remote_action := false
 	set(value):
 		player_number = value
 		_update_label()
-## Профиль сетевого игрока с сервера (PlayerRegistry.clean_profile: {name, hoodie, hair_style,
-## hair_color}; реплицируется): внешность и подпись над головой. Пустой — «Игрок N» и спрайт сцены.
+## Реплицируемый профиль с сервера: внешность, аксессуар и подпись над головой.
+## Пустой профиль даёт подпись «Игрок N» и спрайт сцены.
 @export var profile: Dictionary = {}:
 	set(value):
 		profile = value
@@ -158,15 +158,20 @@ func _ready() -> void:
 		emote_bar.player = self
 		add_child(emote_bar)
 		set_appearance(PlayerProfile.to_dict())
+		PlayerProfile.accessory_changed.connect(_refresh_local_accessory)
 
 
-## Применить внешность и ник. Данные — словарь {nickname, hoodie,
-## hair_style, hair_color}: из PlayerProfile.to_dict() для своего игрока
-## или пришедший по сети для чужого (проверяется через sanitize).
+func _refresh_local_accessory(_id: String) -> void:
+	_sprite.texture = PlayerProfile.texture()
+	_nameplate.add_theme_color_override("font_color", CharacterLook.nickname_tint(PlayerProfile.nickname_color))
+
+
+## Применить внешность и ник из PlayerProfile.to_dict().
 func set_appearance(data: Dictionary) -> void:
 	var clean := CharacterLook.sanitize(data)
 	_sprite.texture = CharacterLook.build_from(clean)
 	_set_nameplate(clean.nickname)
+	_nameplate.add_theme_color_override("font_color", CharacterLook.nickname_tint(data.get("nickname_color")))
 
 
 ## Для сетевого игрока: плавно перейти в точку (пришедшую с сервера).
@@ -187,7 +192,6 @@ func _set_nameplate(nickname: String) -> void:
 		_nameplate.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 		_nameplate.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		_nameplate.add_theme_font_size_override("font_size", NAMEPLATE_FONT_SIZE)
-		_nameplate.add_theme_color_override("font_color", Color(1, 1, 1))
 		_nameplate.add_theme_color_override("font_outline_color", Color(0.08, 0.08, 0.12))
 		_nameplate.add_theme_constant_override("outline_size", 3)
 		_nameplate.z_index = 50
@@ -428,6 +432,8 @@ func _interact() -> void:
 			_sprite.flip_h = (dir.x < 0) != sprite_faces_left
 	# Диалог и прятки у каждого свои: на сервере такую цель выполняет клиент игрока
 	if is_personal_target(target) and Net.route_personal_interact(_interact_actor_peer, target):
+		if target is NPC:
+			target.track_server_interaction(self)
 		return
 	target.interact(self)
 
@@ -681,8 +687,7 @@ func display_name() -> String:
 # Внешность и подпись из сетевого профиля. Серверу текстура не нужна (он ничего не рисует).
 func _apply_profile() -> void:
 	if _sprite != null and not profile.is_empty() and not Net.is_server():
-		_sprite.texture = CharacterLook.build(str(profile.get("hoodie", "")),
-				str(profile.get("hair_style", "")), str(profile.get("hair_color", "")))
+		_sprite.texture = CharacterLook.build_from(profile)
 	_update_label()
 
 
@@ -691,3 +696,4 @@ func _update_label() -> void:
 		return
 	_label.visible = player_number > 0
 	_label.text = display_name()
+	_label.add_theme_color_override("font_color", CharacterLook.nickname_tint(profile.get("nickname_color")))

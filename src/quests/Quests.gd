@@ -116,6 +116,8 @@ func remove_quest(id: String) -> void:
 
 ## Отметить задание выполненным. Повторный вызов ничего не делает.
 func complete(id: String) -> void:
+	if Net.is_server():
+		Net.record_tutorial_step(id)
 	if Net.forward_personal(&"Quests", &"complete", [id]):
 		return
 	var quest := find(id)

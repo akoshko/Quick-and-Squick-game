@@ -15,6 +15,7 @@ extends StaticBody2D
 ## центр его квадрата 2×2 (угол между четырьмя клетками).
 
 signal hp_changed(hp: int, max_hp: int)
+signal hit_by(player: Player)
 signal defeated
 signal left   ## уполз, не дождавшись победы
 
@@ -90,10 +91,11 @@ func get_cells() -> Array[Vector2i]:
 	return cells
 
 
-func interact(_player: Player) -> void:
-	if _dead or _invulnerable > 0.0:
+func interact(player: Player) -> void:
+	if net_view or _dead or _invulnerable > 0.0:
 		return
 	hp -= 1
+	hit_by.emit(player)
 	_invulnerable = INVULNERABLE_TIME
 	_flash = 1.0
 	FloatingText.spawn(self, global_position + Vector2(0, -38), "-1", Color(1, 0.4, 0.35))

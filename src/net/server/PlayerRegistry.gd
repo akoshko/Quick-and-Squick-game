@@ -8,6 +8,7 @@ const NAME_MAX := 24
 
 var _by_player: Dictionary = {}  # player_id -> record Dictionary
 var _by_token: Dictionary = {}   # token -> player_id
+var _achievements_by_token: Dictionary = {}
 var _banned: Dictionary = {}     # token -> {player_id, number, name, at}
 var _next_number := 1
 
@@ -36,7 +37,7 @@ func admit(token: String, role: String, now: float, profile: Variant = {}) -> Di
 		rec.held_since = 0.0
 		rec.reconnects += 1
 		if profile is Dictionary and not (profile as Dictionary).is_empty():
-			rec.profile = clean_profile(profile, rec.number)
+			rec.profile = clean_profile(profile, rec.number, achievements_of(token))
 		res.ok = true
 		res.player_id = rec.player_id
 		res.number = rec.number
@@ -47,7 +48,7 @@ func admit(token: String, role: String, now: float, profile: Variant = {}) -> Di
 	_by_player[pid] = {
 		"player_id": pid, "number": n, "state": "connected", "joined_at": now,
 		"reconnects": 0, "peer_id": 0, "token": token, "held_since": 0.0,
-		"profile": clean_profile(profile, n),
+		"profile": clean_profile(profile, n, achievements_of(token)), "tutorial_step": 0,
 	}
 	_by_token[token] = pid
 	res.ok = true
@@ -146,11 +147,72 @@ func profile_of(player_id: String) -> Dictionary:
 	return _by_player[player_id].profile.duplicate() if _by_player.has(player_id) else {}
 
 
+func token_for_player(player_id: String) -> String:
+	return _by_player[player_id].token if _by_player.has(player_id) else ""
+
+
+func peer_for_token(token: String) -> int:
+	return peer_for_player(_by_token.get(token, ""))
+
+
+func achievements_of(token: String) -> Dictionary:
+	return _achievements_by_token.get(token, {})
+
+
+func award_achievement(token: String, id: StringName) -> bool:
+	if token.is_empty() or achievements_of(token).has(id):
+		return false
+	if not _achievements_by_token.has(token):
+		_achievements_by_token[token] = {}
+	_achievements_by_token[token][id] = true
+	return true
+
+
+func tutorial_step_of(player_id: String) -> int:
+	return _by_player[player_id].tutorial_step if _by_player.has(player_id) else 0
+
+
+func advance_tutorial(player_id: String, step_id: String, steps: Array[Quest]) -> bool:
+	if not _by_player.has(player_id):
+		return false
+	var record: Dictionary = _by_player[player_id]
+	var step: int = record.tutorial_step
+	if step >= steps.size() or steps[step].id != step_id:
+		return false
+	record.tutorial_step += 1
+	return record.tutorial_step == steps.size()
+
+
+func reset_tutorial_progress() -> void:
+	for record: Dictionary in _by_player.values():
+		record.tutorial_step = 0
+
+
+func equip_accessory(peer_id: int, id: String) -> String:
+	var player_id := player_for_peer(peer_id)
+	if player_id == "":
+		return ""
+	if not _can_equip(id, achievements_of(token_for_player(player_id))):
+		return ""
+	var slot := ""
+	if CharacterLook.NICKNAME_COLORS.has(id):
+		slot = "nickname_color"
+	elif CharacterLook.ACCESSORIES.has(id):
+		slot = "accessory"
+	else:
+		return ""
+	var player_profile: Dictionary = _by_player[player_id].profile
+	if player_profile[slot] == id:
+		return ""
+	player_profile[slot] = id
+	return player_id
+
+
 ## Проверенный профиль — единственный источник имени и скина игрока на сервере:
-## {name, hoodie, hair_style, hair_color}. Ник — два слова из CharacterLook (как в создании
+## Ник — два слова из CharacterLook (как в создании
 ## персонажа, своё не вписать); пробелы по краям срезаются, длина не больше NAME_MAX; без
 ## допустимых слов — «Игрок N». Внешность — только известные id, иначе вариант по умолчанию.
-static func clean_profile(data: Variant, number: int) -> Dictionary:
+static func clean_profile(data: Variant, number: int, achievements: Dictionary = {}) -> Dictionary:
 	var d: Dictionary = data if data is Dictionary else {}
 	var first := str(d.get("title_first", "")).strip_edges()
 	var second := str(d.get("title_second", "")).strip_edges()
@@ -159,12 +221,22 @@ static func clean_profile(data: Variant, number: int) -> Dictionary:
 		name = CharacterLook.make_nickname(first, second).strip_edges().left(NAME_MAX).strip_edges()
 	if name == "":
 		name = "Игрок %d" % number
+	var accessory := CharacterLook.clean_accessory(d.get("accessory"))
+	var nickname_color := CharacterLook.clean_nickname_color(d.get("nickname_color"))
 	return {
 		"name": name,
 		"hoodie": CharacterLook.find(CharacterLook.HOODIES, str(d.get("hoodie", ""))).id,
 		"hair_style": CharacterLook.find(CharacterLook.HAIR_STYLES, str(d.get("hair_style", ""))).id,
 		"hair_color": CharacterLook.find(CharacterLook.HAIR_COLORS, str(d.get("hair_color", ""))).id,
+		"accessory": accessory if _can_equip(accessory, achievements) else CharacterLook.STARTER_ACCESSORY,
+		"nickname_color": nickname_color if _can_equip(nickname_color, achievements) else CharacterLook.DEFAULT_NICKNAME_COLOR,
 	}
+
+
+static func _can_equip(id: String, achievements: Dictionary) -> bool:
+	var option := CharacterLook.accessory_option(id)
+	var achievement: StringName = option.get("achievement", &"")
+	return not option.is_empty() and (achievement == &"" or achievements.has(achievement))
 
 
 ## Идентификатор скина для админки: «худи/причёска/цвет волос».

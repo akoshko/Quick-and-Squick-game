@@ -140,7 +140,8 @@ func _step(row_id: Row, delta: int) -> void:
 func _update() -> void:
 	_nickname.text = CharacterLook.make_nickname(_options[Row.FIRST][_index[Row.FIRST]],
 			_options[Row.SECOND][_index[Row.SECOND]])
-	_preview.texture = CharacterLook.build(_look_id(Row.HOODIE), _look_id(Row.STYLE), _look_id(Row.COLOR))
+	_preview.texture = CharacterLook.build(
+		_look_id(Row.HOODIE), _look_id(Row.STYLE), _look_id(Row.COLOR), PlayerProfile.accessory)
 	for i in _rows.size():
 		(_rows[i].value as Label).text = _options[i][_index[i]]
 	# Цвет волос не важен, если волос нет

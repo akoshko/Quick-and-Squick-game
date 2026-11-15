@@ -4,8 +4,8 @@ extends Node
 ## серверу RPC NetWorld.submit_input — при изменении и повторно раз в RESEND_SECONDS, чтобы
 ## потерянный ненадёжный пакет не оставил персонажа идущим или стоящим.
 ## Пока открыт журнал, шлёт «стоять».
-## Нажатие «действия» (E, кнопка на телефоне): личную цель (диалог NPC, прятки) выполняет сам
-## у своей копии мира, иначе надёжно просит сервер (NetWorld.request_interact).
+## Нажатие «действия»: обычные личные цели выполняет клиент. Обучение и общие
+## взаимодействия проверяет сервер (NetWorld.request_interact).
 
 const RESEND_SECONDS := 0.5
 
@@ -46,7 +46,7 @@ func _interact() -> void:
 	var sync := world.get_node_or_null("WorldSync") as WorldSync
 	var me := sync.own_player() if sync != null else null
 	var target := me.personal_target() if me != null else null
-	if target != null:
+	if target != null and not (target is NPC and target.tracks_server_interaction()):
 		target.interact(me)
 	else:
 		world.request_interact.rpc_id(1)

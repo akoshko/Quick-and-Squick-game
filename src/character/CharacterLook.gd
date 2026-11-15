@@ -12,6 +12,20 @@ class_name CharacterLook
 ## контур — #16161B (22, 22, 27). Прядка ложится на колонки streak_cols.
 
 const DIR := "res://src/character/"
+const NO_ACCESSORY := "none"
+const STARTER_ACCESSORY := "participant_badge"
+const ACCESSORIES := {
+	NO_ACCESSORY: {"title": "Нет аксессуара"},
+	STARTER_ACCESSORY: {"title": "Бейдж участника"},
+	"first_steps": {"title": "Значок новичка", "achievement": &"first_steps"},
+	"apple": {"title": "Яблоко", "achievement": &"steve_jobs"},
+}
+const DEFAULT_NICKNAME_COLOR := "white"
+const NICKNAME_COLORS := {
+	DEFAULT_NICKNAME_COLOR: {"title": "Белый", "tint": Color.WHITE},
+	"orange": {"title": "Оранжевый", "tint": Color("#ff9d43"), "achievement": &"first_steps"},
+	"blue": {"title": "Синий", "tint": Color("#75aaff"), "achievement": &"boss_victory"},
+}
 const STREAK_MAX_ROW := 9                     # прядка — только над лбом
 static var HOODIE_KEY := Color8(161, 40, 35)  # красное худи в body.png
 static var HAIR_KEY := Color8(115, 72, 41)    # коричневые волосы в hair_*.png
@@ -63,12 +77,13 @@ static var TITLE_SECOND: Array[String] = [
 ]
 
 static var _cache := {}
+static var _accessory_icons: Dictionary[String, Texture2D] = {}
 
 
 ## Текстура персонажа для выбранных вариантов (id из списков выше).
 ## Неизвестный id заменяется первым вариантом списка.
-static func build(hoodie_id: String, style_id: String, color_id: String) -> Texture2D:
-	var key := "%s/%s/%s" % [hoodie_id, style_id, color_id]
+static func build(hoodie_id: String, style_id: String, color_id: String, accessory_id := "") -> Texture2D:
+	var key := "%s/%s/%s/%s" % [hoodie_id, style_id, color_id, accessory_id]
 	if _cache.has(key):
 		return _cache[key]
 
@@ -88,6 +103,10 @@ static func build(hoodie_id: String, style_id: String, color_id: String) -> Text
 		_recolor(hair_image, HAIR_KEY, hair.color, hair.get("streak", null), streak_cols)
 		_overlay(image, hair_image)
 
+	if accessory_id != NO_ACCESSORY and ACCESSORIES.has(accessory_id):
+		var badge := accessory_icon(accessory_id).get_image()
+		image.blend_rect(badge, Rect2i(Vector2i.ZERO, badge.get_size()), Vector2i(15, 24 - badge.get_height()))
+
 	var texture := ImageTexture.create_from_image(image)
 	_cache[key] = texture
 	return texture
@@ -95,7 +114,7 @@ static func build(hoodie_id: String, style_id: String, color_id: String) -> Text
 
 ## Привести данные игрока к допустимому виду: неизвестные id и слова ника
 ## заменяются вариантами по умолчанию. Обязательно для данных из сети.
-## Формат (он же сетевой): {title_first, title_second, hoodie, hair_style, hair_color}
+## Формат профиля: {title_first, title_second, hoodie, hair_style, hair_color, accessory}
 ## В ответе есть и готовый "nickname" — собранный из двух проверенных слов.
 static func sanitize(data: Dictionary) -> Dictionary:
 	var first := _word(TITLE_FIRST, data.get("title_first", ""))
@@ -107,6 +126,7 @@ static func sanitize(data: Dictionary) -> Dictionary:
 		"hoodie": find(HOODIES, str(data.get("hoodie", ""))).id,
 		"hair_style": find(HAIR_STYLES, str(data.get("hair_style", ""))).id,
 		"hair_color": find(HAIR_COLORS, str(data.get("hair_color", ""))).id,
+		"accessory": clean_accessory(data.get("accessory")),
 	}
 
 
@@ -123,7 +143,58 @@ static func _word(list: Array[String], value: Variant) -> String:
 ## Текстура по данным внешности (словарь из sanitize / PlayerProfile.to_dict)
 static func build_from(data: Dictionary) -> Texture2D:
 	var clean := sanitize(data)
-	return build(clean.hoodie, clean.hair_style, clean.hair_color)
+	return build(clean.hoodie, clean.hair_style, clean.hair_color, clean.accessory)
+
+
+static func clean_accessory(value: Variant) -> String:
+	return str(value) if value is String and ACCESSORIES.has(value) else STARTER_ACCESSORY
+
+
+static func accessory_option(id: String) -> Dictionary:
+	return ACCESSORIES.get(id, NICKNAME_COLORS.get(id, {}))
+
+
+static func accessory_icon(id: String) -> Texture2D:
+	if _accessory_icons.has(id):
+		return _accessory_icons[id]
+	var icon: Image
+	match id:
+		NO_ACCESSORY:
+			icon = Image.create_empty(7, 7, false, Image.FORMAT_RGBA8)
+			for pixel in range(1, 6):
+				icon.set_pixel(pixel, pixel, Color("#a0a6b5"))
+				icon.set_pixel(pixel, 6 - pixel, Color("#a0a6b5"))
+		STARTER_ACCESSORY:
+			icon = Image.create_empty(5, 4, false, Image.FORMAT_RGBA8)
+			icon.fill(Color("#252936"))
+			icon.fill_rect(Rect2i(1, 1, 3, 2), Color("#c4e2f0"))
+		"first_steps":
+			icon = Image.create_empty(4, 4, false, Image.FORMAT_RGBA8)
+			icon.fill(Color("#203c33"))
+			icon.fill_rect(Rect2i(1, 1, 2, 2), Color("#a9df7a"))
+		"apple":
+			var pixels := [
+				"...++", "...+.", "##.##", "..###", ".####", ".#.#.",
+			]
+			icon = Image.create_empty(pixels[0].length(), pixels.size(), false, Image.FORMAT_RGBA8)
+			for y in pixels.size():
+				for x in pixels[y].length():
+					match pixels[y][x]:
+						"#": icon.set_pixel(x, y, Color("#f26368"))
+						"+": icon.set_pixel(x, y, Color("#a9df7a"))
+		_:
+			icon = Image.create_empty(4, 4, false, Image.FORMAT_RGBA8)
+			icon.fill(nickname_tint(id))
+	_accessory_icons[id] = ImageTexture.create_from_image(icon)
+	return _accessory_icons[id]
+
+
+static func clean_nickname_color(value: Variant) -> String:
+	return str(value) if value is String and NICKNAME_COLORS.has(value) else DEFAULT_NICKNAME_COLOR
+
+
+static func nickname_tint(value: Variant) -> Color:
+	return NICKNAME_COLORS[clean_nickname_color(value)].tint
 
 
 ## Вариант из списка по id (или первый, если такого нет)
