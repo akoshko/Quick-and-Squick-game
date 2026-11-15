@@ -21,6 +21,8 @@ func _enter_tree() -> void:
 
 
 func _ready() -> void:
+	# прятки идут по личным квестам: в сети тайник открывает клиент игрока у себя
+	add_to_group(Player.PERSONAL_GROUP)
 	_moderator_lines = moderator.lines
 	moderator.dialogue_finished.connect(_on_moderator_dialogue_finished)
 	_participant.dialogue_finished.connect(_on_participant_dialogue_finished)

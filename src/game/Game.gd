@@ -50,8 +50,8 @@ func _setup_network() -> void:
 
 # Экранный вид (проектор): вся карта слева, справа колонка ScreenOverlay; управления и квестов нет
 func _setup_screen_view() -> void:
-	# все слои интерфейса уровня (управление, квесты, ачивки, HUD, полоска босса) скрыты;
-	# ScreenOverlay и ConnectionOverlay лежат вне этого набора
+	# слои интерфейса уровня (управление, квесты, ачивки, HUD) скрыты; общие для всех полоска
+	# босса и счётчик кофе остаются. ScreenOverlay и ConnectionOverlay лежат вне этого набора
 	for node in find_children("*", "CanvasLayer", true, false):
 		_hide_screen_ui(node)
 	# слои, которые уровень создаёт позже (счётчик кофе, эмоции и т.п.), — тоже
@@ -63,8 +63,13 @@ func _setup_screen_view() -> void:
 func _hide_screen_ui(node: Variant) -> void:
 	if not is_instance_valid(node):
 		return  # отложенный вызов: слой мог быть удалён
-	if node is CanvasLayer and not node is ScreenOverlay:
+	if node is CanvasLayer and not _kept_on_screen(node):
 		(node as CanvasLayer).visible = false
+
+
+# Слои, которые остаются на проекторе: его колонка, полоска босса и счётчик кофе
+func _kept_on_screen(layer: CanvasLayer) -> bool:
+	return layer is ScreenOverlay or layer is BossBar or layer is CoffeeCounter
 
 
 func _on_screen_node_added(node: Node) -> void:

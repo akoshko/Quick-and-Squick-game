@@ -117,11 +117,11 @@ func route(method: String, path: String, headers: Dictionary) -> Dictionary:
 			world.restart_world()
 			return _resp(200, {"ok": true})
 		"progress_reset":
-			var tree := get_tree()
-			if tree == null:
-				return _resp(503, {"error": "no tree"})
-			tree.root.get_node("GameManager").reset()
-			tree.root.get_node("Quests").reset()
+			# общий мир заново и сброс личных квестов у всех игроков
+			var world := _net_world()
+			if world == null:
+				return _resp(503, {"error": "world not ready"})
+			world.reset_progress()
 			return _resp(200, {"ok": true})
 		"boss_restart":
 			var director := _boss_director()

@@ -20,10 +20,10 @@ extends Node2D
 ## улеглись — головоломка и компьютер сбрасываются.
 ##
 ## Сеть (много игроков, сервер): всё, что решает исход — случайные места
-## кофе, маршруты зомби, кто пойман, — считает только хозяин сети
-## (is_multiplayer_authority(); в одиночной игре это сама игра). Наружу —
-## сигналы-события и снимок состояния get_state()/apply_state() для
-## подключившихся позже. Стаканчики пронумерованы (id).
+## кофе, маршруты зомби, кто пойман, — считает только сервер (Net.runs_world();
+## в одиночной игре это сама игра). Клиенты получают состояние net_state()
+## (WorldSync) и по его смене сами показывают начало, счётчик, задание, победу
+## или поражение — задание у каждого игрока своё. Стаканчики пронумерованы (id).
 
 signal started
 signal coffee_spawned(id: int, cell: Vector2i)
@@ -76,6 +76,7 @@ var _counter: CoffeeCounter
 
 func _ready() -> void:
 	add_to_group("zombie_uprising")
+	add_to_group(WorldSync.GROUP)
 	var marker := get_tree().get_first_node_in_group(Player.RESPAWN_GROUP) as Node2D
 	if marker:
 		respawn_cell = Grid.world_to_cell(self, marker.global_position)
@@ -110,11 +111,11 @@ func _players() -> Array[Player]:
 
 
 func _on_uprising_started() -> void:
-	if is_multiplayer_authority():
+	if Net.runs_world():
 		start()
 
 
-## Начать восстание (сервер; клиенты получают это через apply_state)
+## Начать восстание (сервер или одиночная игра; клиенты — по apply_net_state, WorldSync)
 func start() -> void:
 	if state != State.IDLE:
 		return
@@ -125,9 +126,29 @@ func start() -> void:
 	_targets.clear()
 	_grace.clear()
 	_takers.clear()
+	if Net.runs_world():
+		_start_simulation()
+	if Net.shows_personal_ui():
+		_start_presentation()
+	started.emit()
+
+
+# Тот, кто ведёт мир: убрать босса, карта для зомби, кофе, зомби встают
+func _start_simulation() -> void:
 	# Боссы и зомби вместе не бывают: живой босс тает и исчезает
 	get_tree().call_group("boss_director", "dismiss_boss")
 	_build_grid()
+	_spawn_coffee()
+	for zombie in _zombies():
+		zombie.start_roaming(self)
+	# Вернулся на точку возрождения (пойман или нажал «Я застрял») — недолго не трогаем
+	for player in _players():
+		if not player.respawned.is_connected(_on_player_respawned):
+			player.respawned.connect(_on_player_respawned.bind(player))
+
+
+# У каждого игрока (на сервере их нет): задание и счётчик кофе
+func _start_presentation() -> void:
 	_add_quest()
 	if is_instance_valid(_counter):
 		_counter.queue_free()
@@ -135,15 +156,6 @@ func start() -> void:
 	add_child(_counter)
 	_counter.set_count(collected, coffee_needed)
 	_counter.set_time_left(time_left)
-	if is_multiplayer_authority():
-		_spawn_coffee()
-	for zombie in _zombies():
-		zombie.start_roaming(self)
-	# Вернулся на точку возрождения (пойман или нажал «Я застрял») — недолго не трогаем
-	for player in _players():
-		if not player.respawned.is_connected(_on_player_respawned):
-			player.respawned.connect(_on_player_respawned.bind(player))
-	started.emit()
 
 
 func _on_player_respawned(player: Player) -> void:
@@ -250,7 +262,7 @@ func _in_grace(player: Player) -> bool:
 
 ## Зомби проверяет, не задел ли он игрока (только на сервере)
 func check_catch(zombie: ZombieModerator) -> void:
-	if state != State.ACTIVE or not is_multiplayer_authority():
+	if state != State.ACTIVE or not Net.runs_world():
 		return
 	for player in _players():
 		if not _in_grace(player) and player.global_position.distance_to(zombie.global_position) < catch_distance:
@@ -261,9 +273,8 @@ func _catch(player: Player) -> void:
 	_grace[player] = Time.get_ticks_msec() + int(respawn_grace * 1000.0)
 	var spawn := Grid.cell_to_world(self, respawn_cell)
 	FloatingText.spawn(self, player.global_position + Vector2(0, -20), "Поймали!", Color(1, 0.4, 0.35))
-	# Своего персонажа переставляем сразу; сетевого — переставит его клиент
-	# по событию player_caught (сетевой код вызовет у него respawn_at)
-	if player.is_local:
+	# Персонажа переставляет тот, кто ведёт мир (одиночная игра или сервер)
+	if Net.runs_world():
 		player.respawn_at(spawn)
 	player_caught.emit(player, spawn)
 
@@ -315,7 +326,7 @@ func spawn_coffee_at(id: int, cell: Vector2i) -> void:
 
 ## Игрок наступил на стаканчик (решает сервер)
 func take_coffee(id: int, player: Player) -> void:
-	if state != State.ACTIVE or not _cups.has(id) or not is_multiplayer_authority():
+	if state != State.ACTIVE or not _cups.has(id) or not Net.runs_world():
 		return
 	coffee_taken_by(id, player)
 	coffee_taken.emit(id, player)
@@ -352,49 +363,55 @@ func _process(delta: float) -> void:
 	time_left = maxf(0.0, time_left - delta)
 	if is_instance_valid(_counter):
 		_counter.set_time_left(time_left)
-	if time_left <= 0.0 and is_multiplayer_authority():
+	if time_left <= 0.0 and Net.runs_world():
 		fail()
 
 
 # --- Успокоились ---
 
-## Кофе собран: зомби идут спать (сервер; клиентам — через apply_state)
+## Кофе собран: зомби идут спать (сервер или одиночная игра; клиенты — по apply_net_state)
 func calm_down() -> void:
 	if state != State.ACTIVE:
 		return
 	state = State.CALMING
-	for id in _cups.keys():
-		remove_coffee(id, false)
-	Quests.complete(COFFEE_STEP_ID)
+	_remove_all_cups()
+	if Net.shows_personal_ui():
+		Quests.complete(COFFEE_STEP_ID)
 	_celebrate()
-	for zombie in _zombies():
-		zombie.go_home()
+	if Net.runs_world():
+		_reward_takers()
+		_send_zombies_home()
 	calming_started.emit()
 
 
 ## Время вышло: зомби уходят спать без победы и без достижения
-## (сервер; клиентам — через apply_state)
+## (сервер или одиночная игра; клиенты — по apply_net_state)
 func fail() -> void:
 	if state != State.ACTIVE:
 		return
 	state = State.CALMING
 	is_failed = true
-	for id in _cups.keys():
-		remove_coffee(id, false)
-	Quests.remove_quest(QUEST_ID)
-	var banner := get_tree().get_first_node_in_group("boss_bar") as BossBar
-	if banner:
-		banner.show_banner(FAIL_TEXT, FAIL_COLOR)
-	if is_instance_valid(_counter):
-		_counter.fade_out()
-	Sfx.play(&"crash", 0.0, 0.0, 0.7)
-	for zombie in _zombies():
-		zombie.go_home()
+	_remove_all_cups()
+	if Net.shows_personal_ui():
+		Quests.remove_quest(QUEST_ID)
+	_show_failure()
+	if Net.runs_world():
+		_send_zombies_home()
 	failed.emit()
 	calming_started.emit()
 
 
-# Победа видна всем: конфетти, большая надпись, достижение участникам
+func _remove_all_cups() -> void:
+	for id in _cups.keys():
+		remove_coffee(id, false)
+
+
+func _send_zombies_home() -> void:
+	for zombie in _zombies():
+		zombie.go_home()
+
+
+# Победа видна всем: конфетти, большая надпись, счётчик уходит
 func _celebrate() -> void:
 	Confetti.burst(self)
 	var banner := get_tree().get_first_node_in_group("boss_bar") as BossBar
@@ -402,11 +419,24 @@ func _celebrate() -> void:
 		banner.show_banner("ЗОМБИ-МОДЕРАТОРЫ УСПОКОИЛИСЬ")
 	if is_instance_valid(_counter):
 		_counter.fade_out()
-	# Каждый клиент выдаёт достижение своему персонажу, если тот подобрал кофе
-	for player: Player in _takers:
-		if is_instance_valid(player) and player.is_local:
-			GameManager.unlock_achievement(ACHIEVEMENT)
-			break
+
+
+# Поражение видно всем: красная надпись, счётчик уходит, грустный звук
+func _show_failure() -> void:
+	var banner := get_tree().get_first_node_in_group("boss_bar") as BossBar
+	if banner:
+		banner.show_banner(FAIL_TEXT, FAIL_COLOR)
+	if is_instance_valid(_counter):
+		_counter.fade_out()
+	Sfx.play(&"crash", 0.0, 0.0, 0.7)
+
+
+# Достижение — тем, кто подобрал кофе (в сети сервер шлёт его их клиентам)
+func _reward_takers() -> void:
+	# ключи без типа: игрок мог уйти и быть удалён (is_instance_valid ниже)
+	for player: Variant in _takers:
+		if is_instance_valid(player):
+			Net.as_player(player, GameManager.unlock_achievement.bind(ACHIEVEMENT))
 
 
 ## Зомби улёгся на свой пуф
@@ -417,36 +447,46 @@ func zombie_asleep(_zombie: ZombieModerator) -> void:
 		if not zombie.asleep:
 			return
 	state = State.IDLE
-	if room and is_multiplayer_authority():
+	if room and Net.runs_world():
 		room.reset_bags()
-	if terminal:
+	if terminal and Net.runs_world():
 		terminal.repair()
 	calmed_down.emit()
 
 
-# --- Снимок состояния для подключившихся игроков ---
+# --- Сеть: состояние для клиентов (WorldSync) ---
 
-func get_state() -> Dictionary:
+## Время — целыми секундами: дальше клиент досчитывает сам, а сервер не шлёт каждый кадр
+func net_state() -> Dictionary:
 	var cups := {}
 	for id: int in _cups:
 		cups[id] = Grid.world_to_cell(self, (_cups[id] as CoffeeCup).global_position)
-	return {"state": state, "collected": collected, "cups": cups, "time_left": time_left, "failed": is_failed}
+	return {"state": state, "collected": collected, "cups": cups, "time_left": ceili(time_left),
+		"failed": is_failed}
 
 
-func apply_state(data: Dictionary) -> void:
-	var new_state: int = data.get("state", State.IDLE)
-	if new_state != State.IDLE and state == State.IDLE:
+## Клиент: начало, счётчик, стаканчики, время и конец — по состоянию с сервера
+func apply_net_state(server_state: Dictionary) -> void:
+	var new_state: int = server_state.get("state", State.IDLE)
+	if new_state == State.IDLE:
+		if state != State.IDLE:
+			# зомби улеглись: можно начинать заново. Больше сбрасывать нечего — стаканчики
+			# и счётчик уже убрали calm_down/fail при переходе в CALMING
+			state = State.IDLE
+		return
+	if state == State.IDLE:
+		is_failed = false
 		start()
-	set_collected(data.get("collected", 0))
-	var cups: Dictionary = data.get("cups", {})
+	set_collected(server_state.get("collected", 0))
+	var cups: Dictionary = server_state.get("cups", {})
 	for id: int in _cups.keys():
 		if not cups.has(id):
 			remove_coffee(id, false)
 	for id: int in cups:
 		spawn_coffee_at(id, cups[id])
-	time_left = data.get("time_left", time_left)
+	time_left = WorldSync.resync_timer(time_left, server_state.get("time_left", time_left))
 	if new_state == State.CALMING and state == State.ACTIVE:
-		if data.get("failed", false):
+		if server_state.get("failed", false):
 			fail()
 		else:
 			calm_down()

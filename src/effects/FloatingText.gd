@@ -11,6 +11,9 @@ const DURATION := 0.9
 
 static func spawn(from: Node, world_pos: Vector2, text: String,
 		color := Color(1, 1, 1)) -> void:
+	# Сеть: текст над общим миром рисуют клиенты — сервер рассылает его (Net.route_fx)
+	if Net.route_fx(WorldSync.Fx.TEXT, [world_pos, text, color]):
+		return
 	var label := Label.new()
 	label.text = text
 	label.mouse_filter = Control.MOUSE_FILTER_IGNORE

@@ -127,6 +127,16 @@ func health_bottom() -> float:
 	return _bar.get_rect().end.y + 2.0 if _bar.visible else 0.0
 
 
+## Сколько здоровья показывает полоска (для проверок)
+func current_hp() -> float:
+	return _bar.hp
+
+
+## Текст последней большой надписи (для проверок)
+func banner_text() -> String:
+	return _banner.text
+
+
 # Размеры — от размера экрана: полоса по центру сверху
 func _layout() -> void:
 	var screen := get_viewport().get_visible_rect().size

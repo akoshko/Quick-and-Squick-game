@@ -1,7 +1,8 @@
 extends Node
 ## Сетевые игроки в мире (§6.4). Сервер — авторитет всех персонажей: спавнит их в `Players`
-## (имя узла — стабильный player_id), двигает по вводу из submit_input; клиенты только рисуют
-## реплицированное состояние. В OFFLINE ничего не делает.
+## (имя узла — стабильный player_id), двигает по вводу из submit_input и выполняет их действие
+## (request_interact) в общем мире; клиенты только рисуют реплицированное состояние.
+## Предметы уровня синхронизирует дочерний WorldSync. В OFFLINE ничего не делает.
 ## В сцене узел — Node2D (y-сортировка персонажей вместе с остальным уровнем).
 
 signal player_count_changed(n: int)
@@ -16,7 +17,7 @@ var player_count: int = 0
 
 var _net: Node
 var _spawn_position := DEFAULT_SPAWN
-var _dynamic_bodies: Array[CollisionObject2D] = []   # сервер: всё, кроме карты и игроков
+var _sync: WorldSync
 var _last_emote: Dictionary = {}   # сервер: player_id -> время последней принятой эмоции (с)
 
 @onready var _players: Node2D = $Players
@@ -29,6 +30,9 @@ func _ready() -> void:
 	var start := get_parent().get_node_or_null("Player1") as Node2D
 	if start != null:
 		_spawn_position = start.position
+	_sync = WorldSync.new()
+	_sync.name = "WorldSync"
+	add_child(_sync)
 	if _net.is_server():
 		_ready_server()
 	elif _net.is_screen():
@@ -51,10 +55,6 @@ func _ready() -> void:
 # --- сервер ---
 
 func _ready_server() -> void:
-	var game := get_parent()
-	for node in game.find_children("*", "CollisionObject2D", true, false):
-		_track_dynamic_body(node)
-	get_tree().node_added.connect(_on_node_added)
 	var server: NetServer = _net.server
 	server.player_joined.connect(_on_player_joined)
 	server.player_held.connect(_on_player_held)
@@ -66,32 +66,6 @@ func _ready_server() -> void:
 			var p := _spawn(rec.player_id, rec.number)
 			p.held = rec.state == "held"
 	_update_player_count()
-
-
-## Сервер проверяет движение только по статичной карте (TileMapLayer): подвижные объекты уровня
-## (мешки и сокобан, NPC, модераторы и зомби, станции, босс) не мешают ходьбе.
-## Скрипты сами меняют слой во время игры (зомби ложится — снова препятствие, мешок
-## возвращается и т.п.), поэтому слой гасится не один раз, а каждый физический кадр.
-func _track_dynamic_body(node: Node) -> void:
-	if node is CollisionObject2D and not node is Player and not node is TileMapLayer:
-		_dynamic_bodies.append(node)
-		(node as CollisionObject2D).collision_layer = 0
-
-
-func _on_node_added(node: Node) -> void:
-	if node is CollisionObject2D and get_parent().is_ancestor_of(node):
-		_track_dynamic_body(node)
-
-
-func _physics_process(_delta: float) -> void:
-	if _dynamic_bodies.is_empty():
-		return
-	var alive: Array[CollisionObject2D] = []
-	for body in _dynamic_bodies:
-		if is_instance_valid(body):
-			body.collision_layer = 0
-			alive.append(body)
-	_dynamic_bodies = alive
 
 
 func _spawn(player_id: String, number: int) -> Player:
@@ -114,6 +88,10 @@ func _spawn(player_id: String, number: int) -> Player:
 func _free_spawn_position() -> Vector2:
 	var start := Grid.world_to_cell(self, _spawn_position)
 	var taken: Array[Vector2i] = []
+	# мешки, NPC и столы-станции твёрдые и на сервере: в них не спавним
+	for node in get_parent().get_children():
+		if Grid.is_solid(node) and node.visible:
+			taken.append(Grid.world_to_cell(self, (node as Node2D).global_position))
 	for p: Node2D in _players.get_children():
 		taken.append(Grid.world_to_cell(self, p.global_position))
 		if p is Player:
@@ -163,13 +141,15 @@ func _on_player_removed(player_id: String) -> void:
 
 
 ## Пир подтвердил эпоху (Net.world_ready): его сцена мира на месте — показываем персонажей
-## (видимость синхронизатора управляет и спавном через MultiplayerSpawner) и число игроков.
+## (видимость синхронизатора управляет и спавном через MultiplayerSpawner), число игроков
+## и снимок общего мира (WorldSync).
 func _show_world_to(peer_id: int) -> void:
 	for p in _players.get_children():
 		var sync := p.get_node_or_null("MultiplayerSynchronizer") as MultiplayerSynchronizer
 		if sync != null:
 			sync.set_visibility_for(peer_id, true)
 	set_player_count.rpc_id(peer_id, player_count)
+	_sync.send_snapshot(peer_id)
 
 
 func _update_player_count() -> void:
@@ -208,6 +188,14 @@ func restart_world() -> void:
 	get_tree().reload_current_scene()
 
 
+## «Сбросить прогресс» (админка): личные квесты всех игроков и общий мир заново.
+func reset_progress() -> void:
+	if not _net.is_server():
+		return
+	Quests.reset()   # на сервере уходит всем игрокам (Net.forward_personal)
+	restart_world()
+
+
 # --- RPC ---
 
 @rpc("any_peer", "call_remote", "unreliable_ordered", 1)
@@ -220,6 +208,28 @@ func submit_input(dir: Vector2i, action: bool) -> void:
 		return
 	p.remote_dir = Vector2i(clampi(dir.x, -1, 1), clampi(dir.y, -1, 1))
 	p.remote_action = action
+
+
+## Клиент нажал «действие» (E): сервер выполняет его у своего экземпляра персонажа,
+## как в одиночной игре (Player.queue_interact -> _interact), от имени этого игрока.
+@rpc("any_peer", "call_remote", "reliable")
+func request_interact() -> void:
+	if not _net.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var p := _player(_net.server.registry.player_for_peer(sender))
+	if p != null and not p.held:
+		p.queue_interact(sender)
+
+
+## Клиент нажал «Я застрял»: сервер возвращает персонажа на точку возрождения.
+@rpc("any_peer", "call_remote", "reliable")
+func request_respawn() -> void:
+	if not _net.is_server():
+		return
+	var p := _player(_net.server.registry.player_for_peer(multiplayer.get_remote_sender_id()))
+	if p != null and not p.held:
+		p.respawn()
 
 
 @rpc("authority", "reliable")

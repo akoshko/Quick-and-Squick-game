@@ -18,6 +18,9 @@ func has_achievement(id: StringName) -> bool:
 
 
 func unlock_achievement(id: StringName) -> void:
+	# сервер ачивок не ведёт: уходит клиенту того, кто действует (Net.as_actor), иначе всем
+	if Net.forward_personal(&"GameManager", &"unlock_achievement", [id]):
+		return
 	if has_achievement(id):
 		return
 	_unlocked_achievements[id] = true

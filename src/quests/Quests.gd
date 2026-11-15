@@ -37,6 +37,8 @@ func _validate_id(id: String, ids: Dictionary) -> void:
 ## Сбросить все задания (вызывается при старте уровня).
 ## Временные задания (босс и т.п.) убираются совсем.
 func reset() -> void:
+	if Net.forward_personal(&"Quests", &"reset"):
+		return
 	for i in range(quests.size() - 1, -1, -1):
 		if quests[i].temporary:
 			quests.remove_at(i)
@@ -52,7 +54,11 @@ func reset() -> void:
 
 ## Добавить временное задание по ходу игры (например, «Победить босса»).
 ## make_current — сразу сделать его текущим квестом (виден на экране).
+## На сервере задание уходит игрокам (Net.forward_personal) и возвращается null.
 func add_quest(id: String, title: String, make_current := true, steps: Array[Quest] = []) -> Quest:
+	if Net.is_server() and Net.forward_personal(&"Quests", &"net_add_quest",
+			[id, title, make_current, _steps_to_net(steps)]):
+		return null
 	var existing := find(id)
 	if existing:
 		return existing
@@ -69,9 +75,31 @@ func add_quest(id: String, title: String, make_current := true, steps: Array[Que
 	return quest
 
 
+# Шаги задания для сети: пары [id, title] (Quest — ресурс, по RPC не передаётся)
+static func _steps_to_net(steps: Array[Quest]) -> Array:
+	var step_data: Array = []
+	for step in steps:
+		step_data.append([step.id, step.title])
+	return step_data
+
+
+## Клиент: задание, присланное сервером (Net.personal_call); steps — пары [id, title]
+func net_add_quest(id: String, title: String, make_current: bool, step_data: Array) -> void:
+	var steps: Array[Quest] = []
+	for entry in step_data:
+		if entry is Array and (entry as Array).size() == 2:
+			var step := Quest.new()
+			step.id = str(entry[0])
+			step.title = str(entry[1])
+			steps.append(step)
+	add_quest(id, title, make_current, steps)
+
+
 ## Убрать задание из списка. Если оно было текущим — текущим станет
 ## следующий невыполненный квест.
 func remove_quest(id: String) -> void:
+	if Net.forward_personal(&"Quests", &"remove_quest", [id]):
+		return
 	var quest := find(id)
 	if quest == null:
 		return
@@ -88,6 +116,8 @@ func remove_quest(id: String) -> void:
 
 ## Отметить задание выполненным. Повторный вызов ничего не делает.
 func complete(id: String) -> void:
+	if Net.forward_personal(&"Quests", &"complete", [id]):
+		return
 	var quest := find(id)
 	if quest == null:
 		push_warning("Quests: нет задания с id \"%s\"" % id)

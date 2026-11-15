@@ -40,6 +40,11 @@ void fragment() {
 
 var title := "Мешок-Мимик"
 var hp := 3
+## Какой из skins (-1 — случайный; в сети выбирает сервер и сообщает клиентам)
+var skin_index := -1
+## Клиент: это только изображение босса с сервера (BossDirector.apply_net_state) — без решений:
+## не отбрасывает, не уползает сам, не пишет «БУМ!» (анимации идут как обычно)
+var net_view := false
 ## Подсказка «E» над боссом поднимается выше, чем над обычным предметом
 var hint_offset := Vector2(0, -14)
 
@@ -59,7 +64,9 @@ var _material: ShaderMaterial
 func _ready() -> void:
 	hp = max_hp
 	if not skins.is_empty():
-		_sprite.texture = skins.pick_random()
+		if skin_index < 0:
+			skin_index = randi() % skins.size()
+		_sprite.texture = skins[skin_index % skins.size()]
 	_sprite_base = _sprite.position
 	var shader := Shader.new()
 	shader.code = FLASH_SHADER
@@ -68,7 +75,8 @@ func _ready() -> void:
 	_sprite.material = _material
 
 	add_to_group("interactable")
-	_displace_bodies()
+	if not net_view:
+		_displace_bodies()   # в сети отбрасывает сервер, клиенты видят новые позиции
 	_land()
 	_chomp_in = randf_range(chomp_every.x, chomp_every.y) + 1.0
 
@@ -104,7 +112,7 @@ func _process(delta: float) -> void:
 	if _dead:
 		return
 
-	if lifetime > 0.0:
+	if lifetime > 0.0 and not net_view:
 		_age += delta
 		if _age >= lifetime:
 			_leave()
@@ -151,6 +159,8 @@ func _land() -> void:
 
 
 func _say_boom() -> void:
+	if net_view:
+		return   # «БУМ!» присылает сервер
 	FloatingText.spawn(self, global_position + Vector2(0, -34), "БУМ!", Color(1, 0.85, 0.4))
 
 
@@ -166,6 +176,25 @@ func _chomp() -> void:
 	t.parallel().tween_property(_sprite, "position", _sprite_base, 0.12)
 	t.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.tween_property(_sprite, "scale", Vector2.ONE, 0.25)
+
+
+## Клиент: здоровье с сервера; удар — вспышка и вздрагивание, как у сервера
+func net_set_hp(value: int) -> void:
+	if value < hp and not _dead:
+		_flash = 1.0
+		_hit()
+	hp = value
+
+
+## Клиент: босс побеждён на сервере — сдувается
+func net_defeat() -> void:
+	if not _dead:
+		_die()
+
+
+## Клиент: босс уполз на сервере — сжимается и исчезает
+func net_leave() -> void:
+	_leave()
 
 
 # Удар: сплющился, вздрогнул из стороны в сторону, спружинил обратно
@@ -228,14 +257,11 @@ func _displace_bodies() -> void:
 	var half := Grid.tile_size(self)
 	var area := Rect2(global_position - half, half * 2.0).grow(10.0)
 	var taken: Array[Vector2i] = my_cells.duplicate()
-	for node in get_tree().current_scene.get_children():
-		if node is CollisionObject2D and node != self and (node as CollisionObject2D).visible:
-			if ((node as CollisionObject2D).collision_layer & 1) != 0:
-				taken.append(Grid.world_to_cell(self, (node as Node2D).global_position))
-	for node in get_tree().current_scene.get_children():
-		if node == self or not (node is CollisionObject2D) or not (node as CollisionObject2D).visible:
-			continue
-		var body := node as Node2D
+	var bodies := _bodies_to_displace()
+	for body in bodies:
+		if Grid.is_solid(body):
+			taken.append(Grid.world_to_cell(self, body.global_position))
+	for body in bodies:
 		if not area.has_point(body.global_position):
 			continue
 		var cell := Grid.find_free_cell_near(self, my_cells, taken)
@@ -245,3 +271,17 @@ func _displace_bodies() -> void:
 			body.displace_to(target)
 		else:
 			body.global_position = target
+
+
+# Видимые физические тела, кроме самого босса: предметы уровня — дети сцены, сетевые
+# персонажи — в NetWorld/Players (группа player)
+func _bodies_to_displace() -> Array[Node2D]:
+	var candidates: Array[Node] = get_tree().current_scene.get_children()
+	for node in get_tree().get_nodes_in_group(Player.GROUP):
+		if not node in candidates:
+			candidates.append(node)
+	var bodies: Array[Node2D] = []
+	for node in candidates:
+		if node != self and node is CollisionObject2D and (node as CollisionObject2D).visible:
+			bodies.append(node as Node2D)
+	return bodies

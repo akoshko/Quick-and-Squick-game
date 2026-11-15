@@ -8,7 +8,8 @@ extends Node
 ## Повторяющиеся звуки каждый раз звучат чуть по-разному: высота тона
 ## случайно гуляет (и не совпадает с прошлым разом). Одинаковых звуков
 ## одновременно играет не больше MAX_SAME — чтобы толпа зомби не оглушала.
-## Звуки локальные: в сетевой игре каждый клиент играет их сам.
+## В сетевой игре звуки общего мира играет каждый клиент: сервер их не играет, а рассылает
+## (Net.route_fx); «голос» NPC (speak) — только у того, кто видит облачко.
 
 const SOUNDS := {
 	&"beep": preload("res://src/audio/beep.wav"),
@@ -38,13 +39,22 @@ var _speech := {}        # говорящий -> номер реплики (но
 
 func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS   # звук достижения — и при открытом журнале
-	GameManager.achievement_unlocked.connect(func(_id: StringName) -> void: play(&"achievement", 0.0))
-	Quests.quest_added.connect(func(_quest: Quest) -> void: play(&"quest", 0.0))
+	# Звук личного события (квест, ачивка) играет всегда, даже если событие пришло вместе с
+	# состоянием мира с сервера (Net.replaying глушит только звуки мира — их шлёт сервер)
+	GameManager.achievement_unlocked.connect(func(_id: StringName) -> void: _play_local(&"achievement", 0.0))
+	Quests.quest_added.connect(func(_quest: Quest) -> void: _play_local(&"quest", 0.0))
 
 
 ## Звук интерфейса: одинаково слышен везде. pitch — базовая высота
 ## (к ней добавляется случайный разброс pitch_jitter)
 func play(sound: StringName, pitch_jitter := 0.08, volume_db := 0.0, pitch := 1.0) -> void:
+	if Net.route_fx(WorldSync.Fx.SOUND, [sound, pitch_jitter, volume_db, pitch]):
+		return
+	_play_local(sound, pitch_jitter, volume_db, pitch)
+
+
+# Звук интерфейса здесь и сейчас, без сетевой маршрутизации (Net.route_fx)
+func _play_local(sound: StringName, pitch_jitter: float, volume_db := 0.0, pitch := 1.0) -> void:
 	var player := AudioStreamPlayer.new()
 	if _setup(player, sound, pitch_jitter, volume_db, pitch):
 		add_child(player)
@@ -54,6 +64,8 @@ func play(sound: StringName, pitch_jitter := 0.08, volume_db := 0.0, pitch := 1.
 ## Звук в мире: в точке world_pos, затихает с расстоянием до камеры
 func play_at(sound: StringName, world_pos: Vector2, pitch_jitter := 0.1, volume_db := 0.0,
 		pitch := 1.0) -> void:
+	if Net.route_fx(WorldSync.Fx.SOUND_AT, [sound, world_pos, pitch_jitter, volume_db, pitch]):
+		return
 	var scene := get_tree().current_scene
 	if scene == null:
 		return
@@ -70,6 +82,8 @@ func play_at(sound: StringName, world_pos: Vector2, pitch_jitter := 0.1, volume_
 ## высота каждого слога чуть своя. pitch — тембр говорящего (1 — обычный).
 ## Звучит без затухания: NPC говорит, только когда игрок рядом.
 func speak(speaker: Node2D, text: String, pitch := 1.0) -> void:
+	if not Net.shows_personal_ui():
+		return   # голос NPC — только у клиентов
 	var line: int = _speech.get(speaker, 0) + 1
 	_speech[speaker] = line
 	var letters := 0

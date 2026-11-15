@@ -60,7 +60,7 @@ func call_moderator() -> void:
 
 func _on_moderator_arrived() -> void:
 	if moderator:
-		moderator.say(reset_line)
+		Net.world_call(moderator, &"say", [reset_line])
 	reset_bags()
 
 

@@ -29,16 +29,23 @@ extends CharacterBody2D
 signal returned   ## вернулся на место после return_to()
 
 const FADE_TIME := 0.35   # сколько тает и проявляется при возврате на место
+# Прозрачность уходит в сеть ступенями 0…NET_ALPHA_STEPS: пока мешок тает при возврате,
+# состояние меняется ступеньками, а не каждый кадр
+const NET_ALPHA_STEPS := 10
 
 var _target_position: Vector2
 var _is_moving := false
 var _sprite: Sprite2D
+# Номер выбранного вида в skins. skin_index — просьба редактора (-1 — случайный),
+# а это итог выбора (в сети его выбирает сервер)
+var _chosen_skin := 0
 
 @onready var _shape: CollisionShape2D = $CollisionShape2D
 
 
 func _ready() -> void:
 	add_to_group("interactable")
+	add_to_group(WorldSync.GROUP)   # в сети позиция, вид и прозрачность — с сервера
 	Grid.snap(self)
 	_target_position = global_position
 	_make_sprite()
@@ -51,10 +58,9 @@ func _make_sprite() -> void:
 	atlas.atlas = sheet
 	if skins.is_empty():
 		atlas.region = Rect2(176, 0, 32, 32)
-	elif skin_index >= 0:
-		atlas.region = skins[skin_index % skins.size()]
 	else:
-		atlas.region = skins.pick_random()
+		_chosen_skin = skin_index % skins.size() if skin_index >= 0 else randi() % skins.size()
+		atlas.region = skins[_chosen_skin]
 	_sprite = Sprite2D.new()
 	_sprite.texture = atlas
 	_sprite.flip_h = random_flip and skin_index < 0 and randf() < 0.5   # иногда зеркально
@@ -109,6 +115,22 @@ func _physics_process(delta: float) -> void:
 		_is_moving = false
 
 
+## Сеть: что видят клиенты (позицию WorldSync добавляет сам)
+func net_state() -> Dictionary:
+	return {"skin": _chosen_skin, "flip": _sprite.flip_h,
+		"alpha": roundi(modulate.a * NET_ALPHA_STEPS)}
+
+
+## Клиент: вид, поворот и прозрачность с сервера
+func apply_net_state(state: Dictionary) -> void:
+	var skin: int = state.get("skin", _chosen_skin)
+	if skin != _chosen_skin and not skins.is_empty():
+		_chosen_skin = skin % skins.size()
+		(_sprite.texture as AtlasTexture).region = skins[_chosen_skin]
+	_sprite.flip_h = state.get("flip", _sprite.flip_h)
+	modulate.a = state.get("alpha", NET_ALPHA_STEPS) / float(NET_ALPHA_STEPS)
+
+
 ## Вызывается игроком, который стоит рядом и смотрит на мешок
 func interact(player: Player) -> void:
 	if _is_moving:
@@ -129,20 +151,20 @@ func push(direction: Vector2i) -> void:
 	# За мешком стена или другой предмет — не двигаемся, просто «плюхаемся»
 	if test_move(global_transform, target_pos - global_position):
 		Sfx.play_at(&"rustle", global_position, 0.12, -6.0)   # упёрся — тише
-		_squish()
+		Net.world_call(self, &"net_squish")
 		return
 
 	_target_position = target_pos
 	_is_moving = true
 	Sfx.play_at(&"rustle", global_position, 0.15)
 	if not quest_id.is_empty():
-		Quests.complete(quest_id)
-	_squish()
+		Quests.complete(quest_id)   # в сети — тому, кто толкнул (Net.as_actor)
+	Net.world_call(self, &"net_squish")
 
 
-# «Сплющивание» при толчке: мешок мягкий — оседает и пружинит обратно
-# (меняем только картинку, не коллизию)
-func _squish() -> void:
+## «Сплющивание» при толчке (у всех, Net.world_call): мешок мягкий — оседает и пружинит
+## обратно (меняем только картинку, не коллизию)
+func net_squish() -> void:
 	var tween := create_tween()
 	tween.tween_property(_sprite, "scale", Vector2(1.25, 0.75), 0.08)
 	var spring := tween.tween_property(_sprite, "scale", Vector2.ONE, 0.3)

@@ -1,6 +1,9 @@
 extends Node
 
 const MAP := "res://src/game/HackathonMap.tscn"
+## Пир, от имени которого сервер действует в проверках: подключённым не числится и world_ready
+## не подтверждал, поэтому личные события ему (Net.forward_personal) просто не уходят
+const FAKE_PEER := 7
 
 var _checks := 0
 var _failures := 0
@@ -55,6 +58,18 @@ func _run() -> void:
 	await _test_hide_and_seek()
 	await _test_boss()
 	await _test_tired_moderators()
+	await _test_net_interact_pushes_bag()
+	await _test_boss_knocks_back_network_players()
+	_test_personal_targets()
+	_test_client_quest_steps()
+	_test_replay_suppresses_world_fx()
+	_test_client_bag_mirror()
+	await _test_client_boss_view()
+	await _test_client_zombie_view()
+	_test_world_sync_diff()
+	await _test_world_sync_glide()
+	_test_world_sync_replay_call()
+	_test_server_forwards_personal()
 	await _test_zombie_uprising()
 	if _failures == 0:
 		print("Completed %d gameplay checks" % _checks)
@@ -243,7 +258,7 @@ func _test_quests() -> void:
 	var bag_start := bag.global_position
 	_player.facing = Vector2i.DOWN
 	_player.displace_to(bag_start - Vector2(0, 32))
-	_check(_player._find_target() == bag, "Player action targets the bean bag in front")
+	_check(_player.find_target() == bag, "Player action targets the bean bag in front")
 	await _press_action()
 	await _wait(0.5)
 	_check(bag.global_position == bag_start + Vector2(0, 32), "Bean bag moves one cell when pushed")
@@ -256,13 +271,13 @@ func _test_quests() -> void:
 	npc.interact(_player)
 	await _wait(0.5)
 	_check(Quests.selected_quest_id == "never_too_late", "HUD advances after the completion delay")
-	for mode in [NetConfig.Mode.CLIENT, NetConfig.Mode.SCREEN]:
-		Net.config.mode = mode
-		_journal.open()
-		var open_unpaused := _journal.is_open() and not get_tree().paused
-		_journal.close()
-		Net.config.mode = NetConfig.Mode.OFFLINE
-		_check(open_unpaused and not _journal.is_open() and not get_tree().paused,
+	for mode: NetConfig.Mode in [NetConfig.Mode.CLIENT, NetConfig.Mode.SCREEN]:
+		var result := {}
+		_in_mode(mode, func() -> void:
+			_journal.open()
+			result.open_unpaused = _journal.is_open() and not get_tree().paused
+			_journal.close())
+		_check(result.open_unpaused and not _journal.is_open() and not get_tree().paused,
 			"The journal does not pause network play")
 	_progress._open_button.pressed.emit()
 	var rows := _journal._list.get_root()
@@ -347,7 +362,7 @@ func _test_hide_and_seek() -> void:
 	var hideout_cell := Grid.world_to_cell(_player, hideout.global_position)
 	_player.displace_to(Grid.cell_to_world(_player, hideout_cell + Vector2i.DOWN))
 	_player.facing = Vector2i.UP
-	_check(_player._find_target() == hideout, "Hideout is reachable through the player interaction")
+	_check(_player.find_target() == hideout, "Hideout is reachable through the player interaction")
 	await _press_action()
 	_check(participant.visible and participant.is_in_group("interactable") and not hideout.is_in_group("interactable"),
 		"Searching reveals Sergey exactly once")
@@ -448,6 +463,256 @@ func _test_tired_moderators() -> void:
 	_check(zombie.asleep and zombie.npc_name == "Уставший модератор", "Falling asleep makes the moderator tired again")
 
 
+# --- Общий мир в сети. Сеть не нужна: те же методы, что вызывают NetWorld и WorldSync;
+# режим сервера подменяется на время проверки (_as_server).
+
+# Выполнить action в режиме сети mode и вернуть прежний режим
+func _in_mode(mode: NetConfig.Mode, action: Callable) -> void:
+	var previous := Net.config.mode
+	Net.config.mode = mode
+	action.call()
+	Net.config.mode = previous
+
+
+# Выполнить action как сервер: режим SERVER, а у NetWorld — синхронизатор sync (и вернуть как было)
+func _as_server(sync: WorldSync, action: Callable) -> void:
+	var net_world := _game.get_node("NetWorld")
+	var previous_sync: WorldSync = net_world._sync
+	net_world._sync = sync
+	_in_mode(NetConfig.Mode.SERVER, action)
+	net_world._sync = previous_sync
+
+
+# Свой WorldSync в NetWorld (в OFFLINE NetWorld его не создаёт); после проверки — free()
+func _new_world_sync() -> WorldSync:
+	var ws := WorldSync.new()
+	ws.name = "WorldSync"
+	_game.get_node("NetWorld").add_child(ws)
+	return ws
+
+
+# Сервер: «действие» сетевого игрока (request_interact) — та же логика, что у своего;
+# мешки твёрдые и для сетевых игроков
+func _test_net_interact_pushes_bag() -> void:
+	var bag: BeanBag = _game.get_node("BeanBag1")
+	# открытый пол рядом с местом, где тест квестов толкал мешок
+	var cell := _open_cell_near(Vector2i(15, 8))
+	bag.displace_to(Grid.cell_to_world(bag, cell + Vector2i.DOWN))
+	_player.displace_to(Grid.cell_to_world(_player, cell))
+	_player.facing = Vector2i.DOWN
+	_player.network_controlled = true
+	_player.remote_dir = Vector2i.ZERO
+	_player.queue_interact(0)
+	await _wait(0.6)
+	_check(not _player._interact_queued and bag.global_position == Grid.cell_to_world(bag, cell + Vector2i(0, 2)),
+		"A network player's action request pushes the bean bag on the server")
+	_player.remote_dir = Vector2i.DOWN
+	await _wait(0.6)
+	_player.remote_dir = Vector2i.ZERO
+	await _wait(0.2)
+	_check(Grid.world_to_cell(_player, _player.global_position) == cell + Vector2i.DOWN
+		and bag.global_position == Grid.cell_to_world(bag, cell + Vector2i(0, 2)),
+		"A network player walking into a bean bag is blocked by it")
+	_player.network_controlled = false
+
+
+# Сервер: босс отбрасывает и сетевых игроков (они живут в NetWorld/Players, а не в корне сцены)
+func _test_boss_knocks_back_network_players() -> void:
+	var director: BossDirector = _game.get_node("BossDirector")
+	var spawn: BossSpawn = director.get_node("SpawnHall")
+	director.dismiss_boss()
+	await _wait(0.9)
+	var remote: Player = load("res://src/player/Player.tscn").instantiate()
+	remote.is_local = false
+	remote.network_controlled = true
+	remote.position = spawn.global_position + Vector2(16, 16)
+	_game.get_node("NetWorld/Players").add_child(remote)
+	director.spawn_boss(spawn)
+	_check(director._boss != null and not Grid.world_to_cell(remote, remote.global_position) in director._boss.get_cells(),
+		"The boss knocks back network players standing on its cells")
+	remote.free()
+
+
+# Личные цели (диалоги, прятки) выполняет клиент, остальное — сервер
+func _test_personal_targets() -> void:
+	var director: BossDirector = _game.get_node("BossDirector")
+	_check(director._boss != null, "A live boss is there to check personal targets against")
+	_check(Player.is_personal_target(_game.get_node("NPC")) and Player.is_personal_target(_game.get_node("HideAndSeek"))
+		and not Player.is_personal_target(_game.get_node("BeanBag1"))
+		and not (director._boss != null and Player.is_personal_target(director._boss)),
+		"NPC dialogue and hide-and-seek are personal, bags and the boss are shared")
+
+
+# Клиент: присланное сервером задание с шагами
+func _test_client_quest_steps() -> void:
+	Quests.net_add_quest("net_test", "Сетевое задание", false, [["net_test_step", "Шаг"]])
+	var net_quest := Quests.find("net_test")
+	_check(net_quest != null and net_quest.steps.size() == 1 and Quests.find("net_test_step") != null,
+		"A quest sent by the server keeps its steps")
+	Quests.remove_quest("net_test")
+
+
+# Клиент: пока применяется состояние с сервера, свои тексты мира не создаются (их шлёт сервер)
+func _test_replay_suppresses_world_fx() -> void:
+	var child_count_before := _game.get_child_count()
+	Net.replay(func() -> void: FloatingText.spawn(_game, Vector2.ZERO, "дубль"))
+	_check(_game.get_child_count() == child_count_before and not Net.replaying,
+		"World effects are not duplicated while server state is applied")
+
+
+# Клиент: мешок принимает позицию, вид и поворот с сервера
+func _test_client_bag_mirror() -> void:
+	var source: BeanBag = _game.get_node("BeanBag3")
+	var copy: BeanBag = load("res://src/bean_bag/BeanBag.tscn").instantiate()
+	_game.add_child(copy)
+	WorldSync.apply_now(copy, WorldSync.state_of(source))
+	_check(copy.global_position == source.global_position
+		and (copy._sprite.texture as AtlasTexture).region == (source._sprite.texture as AtlasTexture).region
+		and copy._sprite.flip_h == source._sprite.flip_h, "A client bean bag mirrors the server's position and look")
+	copy.free()
+
+
+# Клиент: босс по состоянию директора — тот же вид и место, без отбрасывания; удар и победа
+func _test_client_boss_view() -> void:
+	var director: BossDirector = _game.get_node("BossDirector")
+	var view := BossDirector.new()
+	view.first_delay = 1.0e9
+	var view_spawn := BossSpawn.new()
+	view_spawn.name = "SpawnView"
+	view_spawn.boss_title = "Мешок-Мимик, Тестовый"
+	view_spawn.location_name = "тесте"
+	view_spawn.position = director.get_node("SpawnLounge").position
+	view.add_child(view_spawn)
+	_game.add_child(view)
+	var spot := view_spawn.global_position + Vector2(16, 16)
+	_player.displace_to(spot)
+	var net_boss := {BossDirector.KEY_NUMBER: 99, BossDirector.KEY_END_REASON: BossDirector.EndReason.NONE,
+		BossDirector.KEY_SPAWN: "SpawnView", BossDirector.KEY_SKIN: 1, BossDirector.KEY_HP: 3,
+		BossDirector.KEY_MAX_HP: 3}
+	view.apply_net_state(net_boss)
+	var shown := view._boss
+	_check(shown != null and shown.net_view and shown.global_position == view_spawn.global_position
+		and shown._sprite.texture == shown.skins[1] and view._bar.health_bottom() > 0 and Quests.find("boss_99") != null,
+		"A client shows the server's boss at its spot with its look, health bar and quest")
+	_check(_player.global_position == spot, "The client's boss image does not knock anyone back")
+	net_boss[BossDirector.KEY_HP] = 2
+	view.apply_net_state(net_boss)
+	_check(shown != null and shown.hp == 2 and view._bar.current_hp() == 2.0,
+		"A server hit lowers the boss health on the client")
+	view.apply_net_state({BossDirector.KEY_NUMBER: 99, BossDirector.KEY_END_REASON: BossDirector.EndReason.DEFEATED})
+	_check(view._boss == null and Quests.is_done("boss_99") and view._bar.banner_text() == "ВЕЛИКИЙ ВРАГ ПОВЕРЖЕН",
+		"A server defeat completes the client's boss quest and shows the banner")
+	await _wait(1.0)
+	_check(not is_instance_valid(shown), "The defeated boss image is removed")
+	view.free()
+
+
+# Клиент: зомби встаёт и ложится по состоянию с сервера
+func _test_client_zombie_view() -> void:
+	var zombie: ZombieModerator = _game.get_node("SokobanRoom/Zombie2")
+	zombie.apply_net_state({"mode": ZombieModerator.Mode.ROAM, "asleep": false})
+	_check(not zombie.asleep and zombie.npc_name == zombie.risen_name and zombie.lines == zombie.risen_lines,
+		"A client zombie rises when the server says so")
+	await _wait(0.5)
+	zombie.apply_net_state({"mode": ZombieModerator.Mode.SLEEP, "asleep": true})
+	_check(zombie.asleep and zombie.npc_name == "Уставший модератор" and zombie.mode == ZombieModerator.Mode.SLEEP,
+		"A client zombie lies down again when the server says so")
+
+
+# Сервер: первая рассылка — весь мир, без изменений — пусто, сдвинули мешок — только он
+func _test_world_sync_diff() -> void:
+	var ws := _new_world_sync()
+	var bag: BeanBag = _game.get_node("BeanBag2")
+	var key := str(_game.get_path_to(bag))
+	var first := ws._collect(false)
+	_check(first.has(key) and first.has("BossDirector") and first.has("ZombieUprising")
+		and ws._collect(false).is_empty(), "WorldSync sends each shared object once and nothing while the world is still")
+	# открытый пол подальше от прошлых проверок: мешок туда просто переставляется
+	var cell := _open_cell_near(Vector2i(20, 12))
+	bag.displace_to(Grid.cell_to_world(bag, cell))
+	var changes := ws._collect(false)
+	_check(changes.keys() == [key] and changes[key][WorldSync.POSITION_KEY] == Vector2i(bag.global_position.round()),
+		"WorldSync sends only the object that changed")
+	_check(ws._collect(true).size() == first.size(), "A world_ready snapshot contains the whole shared world")
+	ws.free()
+
+
+# Клиент: позиция с сервера — плавно вблизи и сразу издалека; «повтор» сервера снимается
+func _test_world_sync_glide() -> void:
+	var ws := _new_world_sync()
+	var bag: BeanBag = _game.get_node("BeanBag2")
+	var key := str(_game.get_path_to(bag))
+	var target := bag.global_position
+	bag.global_position = target + Vector2(16, 0)
+	ws.receive_states({key: {WorldSync.POSITION_KEY: Vector2i(target)}})
+	_check(ws._glide_targets.has(bag) and bag.global_position != target and not Net.replaying,
+		"A client glides a shared object toward the server position")
+	await _wait(0.3)
+	_check(bag.global_position == target and not ws._glide_targets.has(bag),
+		"The glide ends exactly at the server position")
+	bag.global_position = target + Vector2(200, 0)
+	ws.receive_states({key: {WorldSync.POSITION_KEY: Vector2i(target)}})
+	_check(bag.global_position == target, "A far server position is applied at once")
+	ws.free()
+
+
+# Рабочий (не зависший) и видимый компьютер на карте, или null
+func _working_laptop() -> Laptop:
+	for node in get_tree().get_nodes_in_group("resource_station"):
+		if node is Laptop and not (node as Laptop).is_empty and node.visible:
+			return node
+	return null
+
+
+# Клиент: вызов эффекта с сервера (replay_call) — реакция компьютера на тычок
+func _test_world_sync_replay_call() -> void:
+	var laptop := _working_laptop()
+	_check(laptop != null, "The map has a working laptop for the replayed effect call")
+	if laptop == null:
+		return
+	var ws := _new_world_sync()
+	ws.replay_call(str(_game.get_path_to(laptop)), &"net_poke_flash", [])
+	_check(laptop._flash > 0.0 and not Net.replaying, "A server effect call replays on the client's object")
+	ws.free()
+
+
+# Сервер (подменённый режим): действия сетевых игроков и личные события
+func _test_server_forwards_personal() -> void:
+	var laptop := _working_laptop()
+	_check(laptop != null, "The map has a working laptop for the server interaction")
+	if laptop == null:
+		return
+	var ws := _new_world_sync()
+	var npc: NPC = _game.get_node("NPC")
+	npc._close()
+	var npc_cell := Grid.world_to_cell(npc, npc.global_position)
+	_player.displace_to(Grid.cell_to_world(npc, npc_cell + Vector2i.DOWN))
+	_player.facing = Vector2i.UP
+	var quest_id := "net_forward_test"
+	Quests.add_quest(quest_id, "Сетевое задание", false)
+	var child_count_before := _game.get_child_count()
+	var pokes: int = laptop._pokes
+	_as_server(ws, func() -> void:
+		_player._interact()
+		Net.as_actor(FAKE_PEER, laptop.interact.bind(_player))
+		Quests.complete(quest_id)
+		Net.as_actor(FAKE_PEER, GameManager.unlock_achievement.bind(&"net_test_achievement"))
+		FloatingText.spawn(_game, Vector2.ZERO, "сервер"))
+	var dialogue_stayed_closed_on_server: bool = not npc._bubble.visible
+	_check(dialogue_stayed_closed_on_server, "The server leaves NPC dialogue to the player's client")
+	_check(laptop._pokes == pokes + 1, "The server runs a shared interaction for a network player")
+	_check(Quests.find(quest_id) != null and not Quests.is_done(quest_id)
+		and not GameManager.has_achievement(&"net_test_achievement"),
+		"The server forwards quests and achievements instead of keeping them")
+	Quests.remove_quest(quest_id)
+	_check(_game.get_child_count() == child_count_before, "The server sends world effects instead of creating them")
+	_player._interact()
+	_check(npc._bubble.visible, "Offline the same action opens the NPC dialogue locally")
+	npc._close()
+	laptop._pokes = pokes
+	ws.free()
+
+
 func _test_zombie_uprising() -> void:
 	var uprising: ZombieUprising = _game.get_node("ZombieUprising")
 	var terminal: ZombieTerminal = _game.get_node("SokobanRoom/Computer")
@@ -479,7 +744,7 @@ func _test_zombie_uprising() -> void:
 	uprising.time_left = 0.05
 	await _wait(0.3)
 	var banner: BossBar = get_tree().get_first_node_in_group("boss_bar")
-	_check(uprising.is_failed and banner._banner.text == ZombieUprising.FAIL_TEXT
+	_check(uprising.is_failed and banner.banner_text() == ZombieUprising.FAIL_TEXT
 		and Quests.find(ZombieUprising.QUEST_ID) == null, "Running out of time shows the red failure banner")
 	_check(not GameManager.has_achievement(ZombieUprising.ACHIEVEMENT), "Failing the uprising gives no achievement")
 	for i in 150:

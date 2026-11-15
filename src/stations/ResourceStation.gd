@@ -29,6 +29,7 @@ var _locked := false
 func _ready() -> void:
 	add_to_group("interactable")
 	add_to_group("resource_station")
+	add_to_group(WorldSync.GROUP)   # в сети состояние (пусто, опрокинута, снесена) — с сервера
 	# Не притягиваем к клетке: станция стоит ровно там, где её поставили
 	# в редакторе (например, на столешнице, которая не совпадает с клеткой)
 	_draw_above_furniture.call_deferred()
@@ -92,7 +93,7 @@ func _set_empty() -> void:
 
 
 func _call_moderator() -> void:
-	if not is_empty or _locked or not is_inside_tree():
+	if not is_empty or _locked or not is_inside_tree() or not Net.runs_world():
 		return
 	var moderator := _pick_moderator()
 	if moderator:
@@ -128,6 +129,21 @@ func set_removed(removed: bool) -> void:
 		remove_from_group("interactable")
 	else:
 		add_to_group("interactable")
+
+
+## Сеть: состояние для клиентов. Наследник дописывает своё (super() + ключи)
+func net_state() -> Dictionary:
+	return {"empty": is_empty, "knocked": is_knocked, "removed": not visible}
+
+
+## Клиент: применить состояние с сервера (сигналы не шлём — ачивки и вызовы решает сервер)
+func apply_net_state(state: Dictionary) -> void:
+	is_empty = state.get("empty", is_empty)
+	is_knocked = state.get("knocked", is_knocked)
+	var removed: bool = state.get("removed", not visible)
+	if removed != (not visible):   # снесена ли сейчас — не совпадает с присланным: применить
+		set_removed(removed)
+	queue_redraw()
 
 
 ## Зона, в которой стоит станция (ближайший родитель-Zone), или null

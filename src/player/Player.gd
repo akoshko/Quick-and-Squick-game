@@ -13,6 +13,9 @@ signal emoted(emote: int)   ## свой игрок показал эмоцию (
 
 const GROUP := "player"
 const RESPAWN_GROUP := "player_respawn"   ## маркер точки возрождения на уровне
+## Личные цели действия (реплики NPC, прятки): в сети их выполняет клиент игрока у своей копии
+## мира — по своим квестам; остальное (мешки, босс, станции…) выполняет сервер в общем мире.
+const PERSONAL_GROUP := "personal_interaction"
 const SUBSTEPS := 4            # шаг = тайл / 4 = 8 px
 const CORNER_NUDGE_STEPS := 2  # на сколько подшагов «доводим» к проходу у угла
 const REACH := 44.0            # докуда (px от центра игрока) достаёт «действие»: ≈1,4 клетки
@@ -83,8 +86,9 @@ var remote_action := false
 		held = value
 		modulate.a = 0.5 if held else 1.0
 
-var _remote_action_prev := false
 var _net_view := false          # клиент: только рисуем реплицированную позицию
+var _interact_queued := false   # сервер: игрок нажал «действие» (NetWorld.request_interact)
+var _interact_actor_peer := 0   # чей это запрос: личные события (квесты) уходят ему
 var _net_last_pos := Vector2.ZERO
 var _net_lag := Vector2.ZERO    # визуальное отставание спрайта (сглаживание тиков)
 var _net_still := 0.0
@@ -124,7 +128,7 @@ func _ready() -> void:
 		is_local = Net.client != null and name == Net.client.player_id
 
 	# Клиент: персонажей двигает сервер, здесь только анимация по позиции
-	if Net.is_network() and not Net.is_server():
+	if Net.is_view():
 		_net_view = true
 		_net_last_pos = position
 		set_physics_process(false)
@@ -133,6 +137,9 @@ func _ready() -> void:
 			var bar := EmoteBar.new()
 			bar.player = self
 			add_child(bar)
+			# подсказка «E» над целью, как в одиночной игре (само действие решает сервер)
+			_hint = InteractHint.new()
+			add_child(_hint)
 		return
 
 	# Скрытый игрок (например, Player2 в одиночной игре) не должен
@@ -220,9 +227,12 @@ func _physics_process(delta: float) -> void:
 	# не разгонит персонажа, а при удержании он идёт без остановок.
 	if not _is_moving:
 		var direction := _read_direction()
-		if _action_just_pressed() and not network_controlled:
-			# В сети действие пока ничего не делает (спецификация §6.4)
+		if _action_just_pressed():
 			_interact()
+		elif _interact_queued:
+			# Сеть: «действие» игрока — та же логика, что в одиночной игре, от его имени
+			_interact_queued = false
+			Net.as_actor(_interact_actor_peer, _interact)
 		if _restore_frame == 0 and direction != Vector2i.ZERO:
 			_try_step(direction)
 			if not _is_moving:
@@ -244,11 +254,15 @@ func _read_direction() -> Vector2i:
 
 
 func _action_just_pressed() -> bool:
-	if not network_controlled:
-		return Input.is_action_just_pressed("action")
-	var pressed := remote_action and not _remote_action_prev
-	_remote_action_prev = remote_action
-	return pressed
+	# сетевой персонаж действует по запросу (queue_interact), а не по удержанию кнопки
+	return not network_controlled and Input.is_action_just_pressed("action")
+
+
+## Сервер: игрок пира peer нажал «действие» — выполнить, как только персонаж встанет в клетку
+## (как в одиночной игре: действие читается, только когда не едем)
+func queue_interact(peer: int) -> void:
+	_interact_queued = true
+	_interact_actor_peer = peer
 
 
 func _try_step(direction: Vector2i) -> void:
@@ -401,10 +415,10 @@ func _start_substep(target: Vector2) -> void:
 	_is_moving = true
 
 
-# Взаимодействуем с целью (см. _find_target). Если цель сбоку или сзади —
+# Взаимодействуем с целью (см. find_target). Если цель сбоку или сзади —
 # сначала поворачиваемся к ней: мешок толкается туда, куда смотрим.
 func _interact() -> void:
-	var target := _find_target()
+	var target := find_target()
 	if target == null:
 		return
 	var dir := _dir_to(target)
@@ -412,16 +426,31 @@ func _interact() -> void:
 		facing = dir
 		if dir.x != 0:
 			_sprite.flip_h = (dir.x < 0) != sprite_faces_left
+	# Диалог и прятки у каждого свои: на сервере такую цель выполняет клиент игрока
+	if is_personal_target(target) and Net.route_personal_interact(_interact_actor_peer, target):
+		return
 	target.interact(self)
 
 
-# Цель для «действия»: ближайший предмет в пределах досягаемости (REACH),
-# а тот, на который смотрим, — в приоритете. Считаем по расстоянию, а не по
-# клеткам: так работает и вплотную (компьютер на столе, модератор, сквозь
-# которого можно пройти), и наискосок. Мешок (есть push) толкается, только
-# если стоим почти на одной линии с ним — правила сокобана не меняются.
-# Подходит любой узел из группы "interactable" с методом interact(player).
-func _find_target() -> Node2D:
+## Личная цель действия (группа PERSONAL_GROUP: реплики NPC, прятки)
+static func is_personal_target(target: Node) -> bool:
+	return target.is_in_group(PERSONAL_GROUP)
+
+
+## Клиент: цель действия, если она личная (её клиент выполняет сам), иначе null
+func personal_target() -> Node2D:
+	var target := find_target()
+	return target if target != null and is_personal_target(target) else null
+
+
+## Цель для «действия»: ближайший предмет в пределах досягаемости (REACH),
+## а тот, на который смотрим, — в приоритете. Считаем по расстоянию, а не по
+## клеткам: так работает и вплотную (компьютер на столе, модератор, сквозь
+## которого можно пройти), и наискосок. Мешок (есть push) толкается, только
+## если стоим почти на одной линии с ним — правила сокобана не меняются.
+## Подходит любой узел из группы "interactable" с методом interact(player).
+## Публичная: по ней и клиент выбирает личную цель (NetInput).
+func find_target() -> Node2D:
 	var best: Node2D = null
 	var best_score := INF
 	for node in get_tree().get_nodes_in_group("interactable"):
@@ -483,8 +512,8 @@ func _dir_to(target: Node2D) -> Vector2i:
 
 ## Мгновенно переставить игрока (например, босс отбросил при появлении)
 func displace_to(world_pos: Vector2) -> void:
-	# В сети сервер отбрасывание выключено (§6.4), а на клиенте позицию задаёт сервер
-	if Net.is_network():
+	# В сети позицию задаёт сервер (он и отбрасывает); клиент её только показывает
+	if Net.is_view():
 		return
 	global_position = world_pos
 	_target_position = world_pos
@@ -502,6 +531,12 @@ func respawn_position() -> Vector2:
 
 ## Вернуться на точку возрождения (кнопка «Я застрял» в меню)
 func respawn() -> void:
+	if _net_view:
+		# в сети персонажа переставляет сервер
+		var world := Net.world()
+		if world != null and Net.connected_to_server():
+			world.request_respawn.rpc_id(1)
+		return
 	respawn_at(respawn_position())
 
 
@@ -558,7 +593,7 @@ func respawn_at(world_pos: Vector2) -> void:
 func _update_hint() -> void:
 	if _hint == null:
 		return
-	var target := _find_target()
+	var target := find_target()
 	if target and target.has_method("hides_interact_hint") and target.hides_interact_hint():
 		target = null
 	_hint.set_target(target)
@@ -597,6 +632,7 @@ func _play_step_animation() -> void:
 func _process(delta: float) -> void:
 	if _net_view:
 		_follow_replicated_position(delta)
+		_update_hint()
 	if _is_moving or (_step_tween and _step_tween.is_running()):
 		_idle_time = 0.0
 		return

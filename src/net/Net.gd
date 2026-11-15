@@ -2,6 +2,17 @@ extends Node
 
 enum Link { CONNECTING, CONNECTED, RECONNECTING, REJECTED }
 
+## Сервер, as_actor: личные события вне действия игрока — всем игрокам
+const ACTOR_EVERYONE := 0
+## Сервер, as_actor: личные события действия отключённого игрока — никому
+const ACTOR_NOBODY := -1
+## Какие личные события сервер может вызвать у клиента (personal_call): autoload -> методы.
+## Каждый вызов forward_personal должен быть в этом списке, иначе клиент его молча проигнорирует.
+const PERSONAL_CALLS := {
+	&"Quests": [&"complete", &"remove_quest", &"reset", &"net_add_quest"],
+	&"GameManager": [&"unlock_achievement"],
+}
+
 signal link_changed(state: int, reason: String)
 ## Server: a peer confirmed its world scene is ready for the current epoch (NetWorld shows it the characters).
 signal world_peer_ready(peer_id: int)
@@ -19,6 +30,13 @@ var client: NetClient
 ## scene reload (old scene gone, new one not added yet) is dropped.
 var world_epoch: int = -1
 var world_ready_peers: Dictionary = {}  # server: peer_id -> true
+
+## Клиент: сейчас применяется состояние или вызов с сервера (replay). Свои всплывающие тексты и
+## звуки мира в это время не создаются — сервер присылает их сам (route_fx), иначе они бы удвоились.
+var replaying := false
+## Сервер: пир, от имени чьего персонажа сейчас выполняется действие; личные события (квесты,
+## ачивки) уходят ему. ACTOR_EVERYONE — всем игрокам, ACTOR_NOBODY — никому (игрок отключён).
+var _actor_peer := ACTOR_EVERYONE
 
 
 func _ready() -> void:
@@ -74,6 +92,134 @@ func is_server() -> bool:
 
 func is_screen() -> bool:
 	return config.mode == NetConfig.Mode.SCREEN
+
+
+# --- Общий мир (gameplay sync). Мир один и живёт на сервере: сервер (и одиночная игра) его
+# симулирует, клиенты и проектор только показывают реплицированное состояние (WorldSync).
+
+## Симулирует ли этот процесс общий мир: одиночная игра или сервер. Клиент и проектор — нет.
+func runs_world() -> bool:
+	return not is_network() or is_server()
+
+
+## Только показывает общий мир, присланный сервером (клиент, проектор): обратное runs_world().
+func is_view() -> bool:
+	return not runs_world()
+
+
+## Показывает ли этот процесс личное: квесты, полоски, голоса и звуки рядом с игроком.
+## Всё, кроме сервера (у него нет экрана и своего игрока).
+func shows_personal_ui() -> bool:
+	return not is_server()
+
+
+## Подключены ли к серверу (клиент; после разрыва стоит OfflineMultiplayerPeer — это «нет»).
+func connected_to_server() -> bool:
+	var mp := multiplayer.multiplayer_peer
+	return client != null and mp != null and not mp is OfflineMultiplayerPeer \
+			and mp.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED
+
+
+## Сетевые игроки текущей сцены (NetWorld) или null. Без типа: autoload не должен зависеть от
+## классов уровня (циклическая загрузка скриптов).
+func world() -> Node:
+	var scene := get_tree().current_scene
+	return scene.get_node_or_null("NetWorld") if scene != null else null
+
+
+## Синхронизатор общего мира текущей сцены (WorldSync; есть только в сети). Без типа — как world().
+func world_sync() -> Node:
+	var net_world := world()
+	return net_world.get_node_or_null("WorldSync") if net_world != null else null
+
+
+## Клиент: выполнить action как повтор присланного сервером (Net.replaying = true на это время).
+func replay(action: Callable) -> void:
+	var was_replaying := replaying
+	replaying = true
+	action.call()
+	replaying = was_replaying
+
+
+## Вызвать метод у предмета мира везде, где этот мир есть: здесь и (на сервере) у всех клиентов.
+## Для видимых эффектов, которые не следуют из состояния (мешок плюхнулся, реплика модератора).
+func world_call(node: Node, method: StringName, args := []) -> void:
+	node.callv(method, args)
+	if is_server():
+		var ws := world_sync()
+		if ws != null:
+			ws.broadcast_call(node, method, args)
+
+
+## Сервер: разослать эффект (всплывающий текст, звук, конфетти) всем клиентам вместо того, чтобы
+## создавать его у себя. kind — WorldSync.Fx (int: autoload не зависит от классов уровня).
+## Возвращает true, если эффект «съеден» (сервер или клиент в replaying).
+func route_fx(kind: int, args: Array) -> bool:
+	if is_server():
+		var ws := world_sync()
+		if ws != null:
+			ws.broadcast_fx(kind, args)
+		return true
+	return replaying
+
+
+## Выполнить действие от имени персонажа пира peer (личные события — ему).
+func as_actor(peer: int, action: Callable) -> void:
+	var prev := _actor_peer
+	_actor_peer = peer
+	action.call()
+	_actor_peer = prev
+
+
+## Выполнить действие от имени игрока: в одиночной игре — если это свой персонаж, на сервере —
+## отправляя личные события его клиенту. На клиенте ничего не делает (мир решает сервер).
+## player без типа и is_local через get — как в world(): autoload не знает класс Player.
+func as_player(player: Node, action: Callable) -> void:
+	if not is_network():
+		if player.get("is_local"):
+			action.call()
+	elif is_server():
+		var peer := server.registry.peer_for_player(str(player.name)) if server != null else 0
+		as_actor(peer if peer > 0 else ACTOR_NOBODY, action)
+
+
+## Сервер: личную цель действия (диалог NPC, прятки) выполнит клиент пира peer у своей копии
+## мира. Возвращает true на сервере — у себя сервер её не выполняет, вызывающий должен закончить.
+func route_personal_interact(peer: int, target: Node) -> bool:
+	if not is_server():
+		return false
+	var ws := world_sync()
+	if ws != null:
+		ws.send_personal_interact(peer, target)
+	return true
+
+
+## Сервер: личное событие (Quests / GameManager) уходит клиенту того, кто действует сейчас
+## (as_actor), а вне действия — всем игрокам. Возвращает true на сервере: у себя сервер
+## квестов не ведёт, вызывающий метод должен на этом закончить.
+func forward_personal(target: StringName, method: StringName, args := []) -> bool:
+	if not is_server():
+		return false
+	var peers: Array = []
+	if _actor_peer > 0:
+		peers = [_actor_peer]
+	elif _actor_peer == ACTOR_EVERYONE:
+		peers = world_ready_peers.keys()
+	for peer: int in peers:
+		if world_ready_peers.has(peer) and peer in multiplayer.get_peers():
+			personal_call.rpc_id(peer, target, method, args)
+	return true
+
+
+## Сервер -> клиент: личное событие (квест, ачивка). Живёт на autoload: квесты переживают
+## перезагрузку сцены.
+@rpc("authority", "call_remote", "reliable")
+func personal_call(target: StringName, method: StringName, args: Array) -> void:
+	if not PERSONAL_CALLS.has(target) or not method in PERSONAL_CALLS[target]:
+		return
+	var node := get_node_or_null(NodePath("/root/" + String(target)))
+	if node != null:
+		node.callv(method, args)
 
 
 ## "dev" is compatible with any version.
@@ -144,7 +290,7 @@ func ack_world() -> void:
 			or mp.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
 		return  # the server sends the epoch on connect (set_world_epoch)
 	var scene := get_tree().current_scene
-	if scene == null or not scene.is_node_ready() or scene.get_node_or_null("NetWorld") == null:
+	if scene == null or not scene.is_node_ready() or world() == null:
 		return  # the world scene is not in place yet: its NetWorld._ready acks
 	world_ready.rpc_id(1, world_epoch)
 

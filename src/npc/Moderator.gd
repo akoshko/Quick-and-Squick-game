@@ -35,6 +35,7 @@ var _stuck := 0                          # сколько раз подряд у
 var _avoid: Array[Vector2i] = []         # клетки, в которые физически не пройти (на этот поход)
 const STUCK_LIMIT := 5                   # ≈2 секунды упираемся — ищем обход мимо этой клетки
 const MAX_ATTEMPTS := 3                  # столько раз не смог подойти — чинит удалённо
+const VIEW_STOP_DELAY := 0.15            # клиент: столько секунд позиция стоит — модератор остановился
 var _attempts := {}                      # станция -> сколько раз не удалось подойти
 var _post := Vector2i.ZERO
 var _errand_goals: Array[Vector2i] = []  # куда идти по поручению
@@ -43,12 +44,15 @@ var _on_errand := false                  # идём (или работаем) п
 var _errand_attempts := 0
 var _bob_phase := 0.0
 var _bob := 0.0
+var _view_last := Vector2.ZERO           # клиент: где был в прошлом кадре (позиция приходит с сервера)
+var _view_still := 0.0                   # клиент: сколько секунд позиция не менялась
 
 
 func _ready() -> void:
 	super()
 	add_to_group("moderator")
 	_post = _cell()
+	_view_last = global_position
 
 
 ## Поручение: дойти до одной из клеток goals, «поработать» work_time секунд
@@ -88,6 +92,8 @@ func request_refill(station: ResourceStation) -> void:
 
 func _physics_process(delta: float) -> void:
 	_update_bob(delta)
+	if not Net.runs_world():
+		return   # в сети модератора водит сервер, здесь только анимация (_process)
 	if _wait > 0.0:
 		_wait -= delta
 		return
@@ -257,13 +263,30 @@ func _blockers() -> Array[Vector2i]:
 	for node in get_tree().current_scene.get_children():
 		if node == self or not (node is CollisionObject2D) or not node.visible:
 			continue
-		if ((node as CollisionObject2D).collision_layer & 1) == 0:
+		if not Grid.is_solid(node):
 			continue
 		if node.has_method("get_cells"):   # большие предметы (босс 2×2)
 			cells.append_array(node.get_cells())
 		else:
 			cells.append(Grid.world_to_cell(self, node.global_position))
 	return cells
+
+
+# Клиент: идёт ли модератор, видно по тому, как меняется позиция с сервера
+func _process(delta: float) -> void:
+	super(delta)
+	if not Net.is_view():
+		return
+	var moved := global_position - _view_last
+	_view_last = global_position
+	if moved != Vector2.ZERO:
+		_view_still = 0.0
+		_stepping = true
+		face_horizontal(moved.x)
+	else:
+		_view_still += delta
+		if _view_still > VIEW_STOP_DELAY:
+			_stepping = false
 
 
 # Пока идёт — вместо «дыхания» покачивание

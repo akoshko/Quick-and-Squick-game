@@ -47,6 +47,7 @@ var _bar: Node2D
 
 func _ready() -> void:
 	add_to_group("interactable")
+	add_to_group(WorldSync.GROUP)   # в сети тычки, поломка и перезагрузка — с сервера
 	_atlas = AtlasTexture.new()
 	_atlas.atlas = sheet
 	_sprite.texture = _atlas
@@ -60,7 +61,7 @@ func _ready() -> void:
 
 
 func interact(_player: Player) -> void:
-	_shake()
+	Net.world_call(self, &"net_shake")
 	if is_broken:
 		Sfx.play_at(&"boop", global_position, 0.05, -4.0)
 		FloatingText.spawn(self, global_position + Vector2(0, -24), "Ошибка 500…", Color(1, 0.5, 0.45))
@@ -76,7 +77,7 @@ func interact(_player: Player) -> void:
 		# Чем ближе к взлому, тем выше пищит
 		Sfx.play_at([&"beep", &"boop"].pick_random(), global_position, 0.06, 0.0,
 				1.0 + 0.5 * float(_pokes) / pokes_needed)
-		_flash = FLASH_TIME
+		Net.world_call(self, &"net_flash")
 		FloatingText.spawn(self, global_position + Vector2(0, -24), POKE_LINES[(_pokes - 1) % POKE_LINES.size()])
 		return
 	is_broken = true
@@ -102,17 +103,28 @@ func repair() -> void:
 	_update_frame()
 
 
-## Снимок для сети: тычки, сломан ли, сколько осталось перезагрузки
-func get_state() -> Dictionary:
-	return {"pokes": _pokes, "broken": is_broken, "cooldown_left": cooldown_left}
+## Состояние для сети: тычки, сломан ли, сколько осталось перезагрузки (целые секунды —
+## дальше клиент досчитывает сам, а сервер не шлёт каждый кадр)
+func net_state() -> Dictionary:
+	return {"pokes": _pokes, "broken": is_broken, "cooldown_left": ceili(cooldown_left)}
 
 
-func apply_state(data: Dictionary) -> void:
-	_pokes = data.get("pokes", 0)
-	is_broken = data.get("broken", false)
-	cooldown_left = data.get("cooldown_left", 0.0)
+## Клиент: тычки, поломка и перезагрузка с сервера
+func apply_net_state(state: Dictionary) -> void:
+	_pokes = state.get("pokes", 0)
+	is_broken = state.get("broken", false)
+	var server_cooldown: float = state.get("cooldown_left", 0)
+	# перезагрузка кончилась — сразу; иначе досчитываем сами (WorldSync.resync_timer)
+	cooldown_left = 0.0 if server_cooldown == 0.0 \
+			else WorldSync.resync_timer(cooldown_left, server_cooldown)
 	_bar.visible = not is_broken
 	_bar.queue_redraw()
+	_update_frame()
+
+
+## Тычок засчитан (у всех, Net.world_call): экран коротко «мигает»
+func net_flash() -> void:
+	_flash = FLASH_TIME
 	_update_frame()
 
 
@@ -122,8 +134,8 @@ func _process(delta: float) -> void:
 	if cooldown_left > 0.0:
 		cooldown_left = maxf(0.0, cooldown_left - delta)
 		_bar.queue_redraw()
-		if cooldown_left == 0.0:
-			Sfx.play_at(&"beep", global_position, 0.0, 0.0, 1.3)   # снова в строю
+		if cooldown_left == 0.0 and Net.runs_world():
+			Sfx.play_at(&"beep", global_position, 0.0, 0.0, 1.3)   # снова в строю (в сети шлёт сервер)
 	_update_frame()
 
 
@@ -159,7 +171,8 @@ func _draw_bar() -> void:
 		_bar.draw_rect(fill, BAR_COOLDOWN if cooling else BAR_START.lerp(BAR_END, progress))
 
 
-func _shake() -> void:
+## Встряска от тычка (у всех, Net.world_call)
+func net_shake() -> void:
 	var t := create_tween()
 	t.tween_property(_sprite, "position", Vector2(1.5, -7), 0.04)
 	t.tween_property(_sprite, "position", Vector2(0, -6), 0.16).set_trans(Tween.TRANS_ELASTIC)

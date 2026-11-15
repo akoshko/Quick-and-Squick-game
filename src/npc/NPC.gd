@@ -63,6 +63,9 @@ var _sprite: Sprite2D               # есть, если задан sprite_textu
 
 func _ready() -> void:
 	add_to_group("interactable")
+	# разговор у каждого игрока свой: в сети реплики показывает его клиент (Player.is_personal_target)
+	add_to_group(Player.PERSONAL_GROUP)
+	add_to_group(WorldSync.GROUP)   # в сети позиция (модератор ходит, босс отбрасывает) — с сервера
 	Grid.snap(self)
 	if sprite_texture:
 		_sprite = Sprite2D.new()

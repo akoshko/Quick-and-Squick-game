@@ -14,6 +14,7 @@ const GROUP := "grid"
 const OBJECTS_GROUP := "grid_objects"
 const FALLBACK_TILE_SIZE := 32   # если на сцене нет слоя с сеткой
 const OBJECT_OVERLAP := 4.0      # насколько (px) мебель должна заходить в клетку, чтобы её занять
+const SOLID_LAYER := 1           # физический слой твёрдых предметов (мешки, NPC, станции, босс)
 								 # (модератор 24 px: в клетке 32 у него по 4 px запаса с каждой стороны)
 
 static var _object_cells := {}        # клетки, занятые мебелью (кэш на кадр)
@@ -46,6 +47,11 @@ static func cell_to_world(node: Node, cell: Vector2i) -> Vector2:
 	if layer:
 		return layer.to_global(layer.map_to_local(cell))
 	return Vector2(cell * FALLBACK_TILE_SIZE) + Vector2.ONE * FALLBACK_TILE_SIZE / 2.0
+
+
+## Твёрдый ли предмет: физическое тело на слое SOLID_LAYER (мешок, NPC, станция, босс)
+static func is_solid(node: Node) -> bool:
+	return node is CollisionObject2D and ((node as CollisionObject2D).collision_layer & SOLID_LAYER) != 0
 
 
 ## Твёрдая ли клетка: у тайла есть коллизия (стена, стол) или это

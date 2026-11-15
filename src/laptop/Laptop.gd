@@ -52,8 +52,8 @@ func _ready() -> void:
 
 
 func interact(_player: Player) -> void:
-	_poke_shake()
 	if is_empty:
+		Net.world_call(self, &"net_poke")
 		Sfx.play_at(&"boop", global_position, 0.05, -4.0)
 		FloatingText.spawn(self, global_position + Vector2(0, -14), "Синий экран…", Color(0.7, 0.8, 1))
 		return
@@ -64,12 +64,24 @@ func interact(_player: Player) -> void:
 	if _pokes >= pokes_needed:
 		Sfx.play_at(&"crash", global_position)
 		if quest_id != "":
-			Quests.complete(quest_id)
+			Quests.complete(quest_id)   # в сети — тому, кто «уронил» (Net.as_actor)
 		_set_empty()   # «закончился» — через 5 с модератор починит
+		Net.world_call(self, &"net_poke")
 	else:
 		Sfx.play_at([&"beep", &"boop"].pick_random(), global_position)
-		_flash = FLASH_TIME   # короткая реакция на тычок
+		Net.world_call(self, &"net_poke_flash")   # короткая реакция на тычок
+
+
+## Реакция на тычок (у всех, кто видит компьютер, Net.world_call): встряска
+func net_poke() -> void:
+	_poke_shake()
 	_update_frame()
+
+
+## Тычок в работающий компьютер (Net.world_call): встряска и «мигание» экрана
+func net_poke_flash() -> void:
+	_flash = FLASH_TIME
+	net_poke()
 
 
 # Реплика на тычок: последняя — на поломку, остальные идут по кругу
@@ -84,7 +96,20 @@ func _poke_line() -> String:
 func _on_refilled() -> void:
 	_pokes = 0
 	_flash = 0.0
-	_poke_shake()
+	Net.world_call(self, &"net_poke")
+
+
+## Сеть: состояние станции плюс число тычков
+func net_state() -> Dictionary:
+	var state := super()
+	state["pokes"] = _pokes
+	return state
+
+
+## Клиент: состояние станции и тычки с сервера
+func apply_net_state(state: Dictionary) -> void:
+	super(state)
+	_pokes = state.get("pokes", _pokes)
 	_update_frame()
 
 

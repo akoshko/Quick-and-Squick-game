@@ -26,7 +26,7 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_time += delta
 	_sprite.position.y = -4.0 + sin(_time * 3.0) * 1.5   # покачивается над полом
-	if _gone or uprising == null or not uprising.is_multiplayer_authority():
+	if _gone or uprising == null or not Net.runs_world():
 		return
 	for node in get_tree().get_nodes_in_group(Player.GROUP):
 		var player := node as Player

@@ -20,6 +20,9 @@ var _time := 0.0
 
 ## Запустить конфетти в текущей сцене
 static func burst(from: Node, pieces := 160) -> void:
+	# Сеть: конфетти над общим миром рисуют клиенты — сервер рассылает его (Net.route_fx)
+	if Net.route_fx(WorldSync.Fx.CONFETTI, [pieces]):
+		return
 	var confetti := Confetti.new()
 	confetti.count = pieces
 	from.get_tree().current_scene.add_child(confetti)

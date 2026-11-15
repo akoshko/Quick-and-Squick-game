@@ -28,6 +28,12 @@ var _saved_tiles := {}                       # клетка -> [source, atlas, a
 var _saved_decor := {}                       # слой -> клетки декора и их тайлы
 var _removed: Array[ResourceStation] = []    # ресурсы, снесённые вместе со столом
 var _knocked: Array[ResourceStation] = []    # опрокинутые ресурсы зоны
+var _broken := false                         # локация сломана (в сети клиенты повторяют тайлы)
+
+
+func _ready() -> void:
+	if not Engine.is_editor_hint():
+		add_to_group(WorldSync.GROUP)
 
 
 ## Сломать локацию перед появлением босса
@@ -36,7 +42,19 @@ func apply() -> void:
 		for station in knock_zone.get_stations():
 			station.knock_over()
 			_knocked.append(station)
+	_break_tiles()
+	for node in get_tree().get_nodes_in_group("resource_station"):
+		var station := node as ResourceStation
+		if station and clear_tiles.has_point(Grid.world_to_cell(self, station.global_position)):
+			station.set_removed(true)
+			_removed.append(station)
 
+
+# Снести стол: клетки — полом, декор на них — убрать (станции сносит apply)
+func _break_tiles() -> void:
+	_broken = true
+	if not _saved_tiles.is_empty():
+		return   # уже сломано (повтор состояния с сервера)
 	var layer := Grid.get_layer(self)
 	if layer == null or clear_tiles.size == Vector2i.ZERO:
 		return
@@ -56,15 +74,29 @@ func apply() -> void:
 				objects.erase_cell(cell)
 		if not decor.is_empty():
 			_saved_decor[objects] = decor
-	for node in get_tree().get_nodes_in_group("resource_station"):
-		var station := node as ResourceStation
-		if station and clear_tiles.has_point(Grid.world_to_cell(self, station.global_position)):
-			station.set_removed(true)
-			_removed.append(station)
 
 
 ## Вернуть локацию после победы или ухода босса
 func release() -> void:
+	var restored_tiles := _restore_tiles()
+	for station in _removed:
+		if is_instance_valid(station):
+			station.set_removed(false)
+	_removed.clear()
+	if restored_tiles:
+		# стол вернулся: персонаж, стоявший на его месте, выходит (в сети персонажи — в NetWorld)
+		for node in get_tree().get_nodes_in_group(Player.GROUP):
+			if node is Player and node.is_visible_in_tree():
+				node.check_restored_tiles(clear_tiles)
+	for station in _knocked:
+		if is_instance_valid(station):
+			station.release_after_boss()
+	_knocked.clear()
+
+
+# Вернуть стол и декор; true — если клетки менялись
+func _restore_tiles() -> bool:
+	_broken = false
 	var layer := Grid.get_layer(self)
 	var restored_tiles := layer != null and not _saved_tiles.is_empty()
 	if layer:
@@ -78,18 +110,21 @@ func release() -> void:
 				var saved: Array = _saved_decor[objects][cell]
 				objects.set_cell(cell, saved[0], saved[1], saved[2])
 	_saved_decor.clear()
-	for station in _removed:
-		if is_instance_valid(station):
-			station.set_removed(false)
-	_removed.clear()
-	if restored_tiles:
-		for node in get_tree().current_scene.get_children():
-			if node is Player and node.is_visible_in_tree():
-				node.check_restored_tiles(clear_tiles)
-	for station in _knocked:
-		if is_instance_valid(station):
-			station.release_after_boss()
-	_knocked.clear()
+	return restored_tiles
+
+
+## Сеть: сломана ли локация (станции синхронизируются сами, клиенту — только тайлы)
+func net_state() -> Dictionary:
+	return {"broken": _broken}
+
+
+## Клиент: сломать или вернуть тайлы, как на сервере
+func apply_net_state(state: Dictionary) -> void:
+	var broken: bool = state.get("broken", false)
+	if broken and not _broken:
+		_break_tiles()
+	elif not broken and _broken:
+		_restore_tiles()
 
 
 func _draw() -> void:

@@ -53,9 +53,9 @@ func interact(_player: Player) -> void:
 	FloatingText.spawn(self, global_position + Vector2(0, -12),
 			"Ням!" if kind == Kind.COOKIE else "Хрум!", Color(1, 0.85, 0.5))
 	if quest_id != "":
-		Quests.complete(quest_id)
+		Quests.complete(quest_id)   # в сети — тому, кто съел (Net.as_actor)
 	_update_frame()
-	_bounce()
+	Net.world_call(self, &"net_bounce")
 	if _left <= 0:
 		_set_empty()
 
@@ -68,7 +68,21 @@ func knock_over() -> void:
 func _on_refilled() -> void:
 	_left = portions
 	_update_frame()
-	_bounce()
+	Net.world_call(self, &"net_bounce")
+
+
+## Сеть: состояние станции плюс сколько порций осталось
+func net_state() -> Dictionary:
+	var state := super()
+	state["portions_left"] = _left
+	return state
+
+
+## Клиент: состояние станции и порции с сервера
+func apply_net_state(state: Dictionary) -> void:
+	super(state)
+	_left = state.get("portions_left", _left)
+	_update_frame()
 
 
 func _update_frame() -> void:
@@ -80,8 +94,8 @@ func _update_frame() -> void:
 	_sprite.rotation = deg_to_rad(-75.0) if is_knocked else 0.0
 
 
-# Посуда «подпрыгивает» при укусе и при пополнении
-func _bounce() -> void:
+## Посуда «подпрыгивает» при укусе и при пополнении (у всех, Net.world_call)
+func net_bounce() -> void:
 	var t := create_tween()
 	t.tween_property(_sprite, "scale", Vector2(1.25, 0.8), 0.06)
 	t.tween_property(_sprite, "scale", Vector2.ONE, 0.25).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)

@@ -10,8 +10,9 @@ extends NPC
 ## карте по клеткам (кадры walk_frames), ловит игроков. go_home() — идёт
 ## к своему пуфу напрямую, сквозь стены и предметы, и снова засыпает.
 ##
-## Сеть: куда идти, решает только хозяин сети (сервер). На клиентах позицию
-## зомби пришлёт синхронизация, а смену режима — ZombieUprising.apply_state().
+## Сеть: куда идти и когда вставать/ложиться, решает только сервер. Клиенты получают
+## позицию, режим и «спит ли» (WorldSync, net_state) и повторяют анимации; выкрики и хрип
+## на ходу у каждого клиента свои.
 
 ## Спящий зомби (картинка лёжа). Если не задан — обычный спрайт кладётся на бок
 @export var sleep_texture: Texture2D
@@ -36,6 +37,8 @@ const LYING_OFFSET := Vector2(-16, -15)
 const SNORE_EVERY := Vector2(2.0, 4.0)   # храп раз в столько секунд (от и до)
 const SLEEPING_LAYER := 1                # спящий — препятствие; проснувшийся ходит сквозь всё
 const GROWL_EVERY := Vector2(4.0, 9.0)   # пока бродит, хрипит раз в столько секунд (от и до)
+const FIRST_SHOUT_DELAY := 0.8           # первая реплика после подъёма — не раньше (с)
+const SLEEP_LINE := "Хррр…"              # что «говорит» спящий
 
 enum Mode { SLEEP, ROAM, RETURN }
 
@@ -54,6 +57,7 @@ var _tired_name := ""
 var _growl_timer := 0.0
 var _shout_timer := 0.0
 var _last_shout := -1
+var _bed: Sprite2D
 
 
 func _ready() -> void:
@@ -87,6 +91,7 @@ func _make_bed() -> void:
 	bed.name = "%sBed" % name
 	bed.texture = atlas
 	bed.flip_h = randf() < 0.5
+	_bed = bed
 	get_parent().add_child(bed)
 	bed.global_position = _home - Vector2(0, 1)
 	bed.offset = Vector2(0, 1)
@@ -108,27 +113,30 @@ func _lie_down() -> void:
 func rise() -> void:
 	if not asleep:
 		return
-	asleep = false
 	_rising = true
 	collision_layer = 0
-	_close()
-	set_npc_name(risen_name)
+	_become_risen()
 	# Встают вразнобой, каждый бормочет своё (облачка соседей налезали бы друг на друга)
 	await get_tree().create_timer(randf() * 0.6).timeout
 	growl()
+	await _stand_up().finished
+	set_dialogue(risen_lines)
+	var line: String = risen_lines[randi() % risen_lines.size()] if not risen_lines.is_empty() else "ыыыы…"
+	FloatingText.spawn(self, global_position + Vector2(0, -22), line, Color(0.7, 1, 0.6))
+	_rising = false
+
+
+# Вскакивает с пуфа (анимация; у клиентов — по состоянию с сервера)
+func _stand_up() -> Tween:
 	if sleep_texture:
-		# Вскакивает: подменяем картинку на стоящую и «подпрыгиваем» с пуфа
+		# Подменяем картинку на стоящую и «подпрыгиваем» с пуфа
 		_sprite.texture = sprite_texture
 		_sprite.offset = Vector2(0, -sprite_texture.get_height() / 2.0)
 		_draw_offset = Vector2(0, -6)
 	var t := create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	t.tween_property(_sprite, "rotation", 0.0, 0.45)
 	t.parallel().tween_property(self, "_draw_offset", Vector2.ZERO, 0.45)
-	await t.finished
-	set_dialogue(risen_lines)
-	var line: String = risen_lines[randi() % risen_lines.size()] if not risen_lines.is_empty() else "ыыыы…"
-	FloatingText.spawn(self, global_position + Vector2(0, -22), line, Color(0.7, 1, 0.6))
-	_rising = false
+	return t
 
 
 ## Хрип (слышно поблизости)
@@ -162,8 +170,7 @@ func start_roaming(uprising: ZombieUprising) -> void:
 	_path.clear()
 	_stepping = false
 	mode = Mode.ROAM
-	# Первая реплика — в случайный момент: зомби кричат не хором
-	_shout_timer = randf_range(0.8, 0.8 + shout_every)
+	_schedule_first_shout()
 	if asleep:
 		rise()
 
@@ -177,10 +184,11 @@ func go_home() -> void:
 
 func _physics_process(delta: float) -> void:
 	_animate_walk()
-	if mode == Mode.SLEEP or _rising or _uprising == null:
+	if mode == Mode.SLEEP or _rising:
 		return
-	if mode == Mode.ROAM:
-		# Хрип и выкрики — локальные, у каждого клиента свои
+	# Звуки — у тех, кто их слышит; ходьба — у того, кто ведёт мир
+	if mode == Mode.ROAM and Net.shows_personal_ui():
+		# Хрип и выкрики — локальные, у каждого клиента свои (сервер их не рассылает)
 		_growl_timer -= delta
 		if _growl_timer <= 0.0:
 			growl()
@@ -188,7 +196,7 @@ func _physics_process(delta: float) -> void:
 		if _shout_timer <= 0.0:
 			_shout_timer += shout_every
 			_shout()
-	if not _uprising.is_multiplayer_authority():
+	if _uprising == null or not Net.runs_world():
 		return   # на клиенте зомби двигает синхронизация с сервера
 	match mode:
 		Mode.ROAM:
@@ -237,15 +245,52 @@ func _animate_walk() -> void:
 func fall_asleep() -> void:
 	global_position = _home
 	mode = Mode.SLEEP
+	_become_tired()
+	FloatingText.spawn(self, global_position + Vector2(0, -16), "z-z-z…", Color(0.75, 0.85, 1))
+	if _uprising:
+		_uprising.zombie_asleep(self)
+
+
+# Проснулся зомби (сервер — в rise, клиент — по состоянию): имя и диалог закрыт
+func _become_risen() -> void:
+	asleep = false
+	_close()
+	set_npc_name(risen_name)
+
+
+# Снова уставший модератор (сервер — в fall_asleep, клиент — по состоянию): лёг на пуф
+func _become_tired() -> void:
 	asleep = true
 	_stepping = false
 	_close()
 	set_npc_name(_tired_name)
-	set_dialogue(PackedStringArray(["Хррр…"]))
+	set_dialogue(PackedStringArray([SLEEP_LINE]))
 	_lie_down()
-	FloatingText.spawn(self, global_position + Vector2(0, -16), "z-z-z…", Color(0.75, 0.85, 1))
-	if _uprising:
-		_uprising.zombie_asleep(self)
+
+
+# Первая реплика — в случайный момент: зомби кричат не хором
+func _schedule_first_shout() -> void:
+	_shout_timer = randf_range(FIRST_SHOUT_DELAY, FIRST_SHOUT_DELAY + shout_every)
+
+
+## Сеть: режим, спит ли и как повёрнут пуф (позицию WorldSync добавляет сам)
+func net_state() -> Dictionary:
+	return {"mode": mode, "asleep": asleep, "bed_flip": _bed != null and _bed.flip_h}
+
+
+## Клиент: встать или улечься, как на сервере (звуки и надписи присылает сервер)
+func apply_net_state(state: Dictionary) -> void:
+	if is_instance_valid(_bed):
+		_bed.flip_h = state.get("bed_flip", _bed.flip_h)
+	var sleeping: bool = state.get("asleep", asleep)
+	mode = state.get("mode", mode)
+	if not sleeping and asleep:
+		_become_risen()
+		_stand_up()
+		set_dialogue(risen_lines)
+		_schedule_first_shout()
+	elif sleeping and not asleep:
+		_become_tired()
 
 
 # Пока ходит — без «дыхания»
@@ -255,8 +300,8 @@ func _idle_paused() -> bool:
 
 func _process(delta: float) -> void:
 	super(delta)
-	if not asleep:
-		return
+	if not asleep or not Net.shows_personal_ui():
+		return   # храп у каждого клиента свой
 	_snore_timer -= delta
 	if _snore_timer <= 0.0:
 		_snore_timer = randf_range(SNORE_EVERY.x, SNORE_EVERY.y)

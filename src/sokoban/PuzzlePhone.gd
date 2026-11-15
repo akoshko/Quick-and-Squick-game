@@ -14,7 +14,7 @@ func _ready() -> void:
 
 
 func interact(_player: Player) -> void:
-	_ring()
+	Net.world_call(self, &"net_ring")
 	if room == null:
 		return
 	if room.is_resetting():
@@ -30,8 +30,8 @@ func _say(text: String, color: Color) -> void:
 	FloatingText.spawn(self, global_position + Vector2(0, -14), text, color)
 
 
-# Трубка дребезжит
-func _ring() -> void:
+## Трубка дребезжит (у всех, Net.world_call)
+func net_ring() -> void:
 	var t := create_tween()
 	for i in 3:
 		t.tween_property(_sprite, "rotation", deg_to_rad(12.0), 0.04)
