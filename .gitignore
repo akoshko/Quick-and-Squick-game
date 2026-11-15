@@ -25,3 +25,7 @@ checks/
 src/net/version.txt
 /deploy/.env.prod
 /deploy/READ_AND_REMOVE_AFTER_CHECKED.md
+
+# VS Code: machine-specific settings stay local, extension recommendations are shared
+.vscode/*
+!.vscode/extensions.json
