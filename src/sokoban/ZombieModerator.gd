@@ -38,6 +38,7 @@ const SNORE_EVERY := Vector2(2.0, 4.0)   # храп раз в столько с�
 const SLEEPING_LAYER := 1                # спящий — препятствие; проснувшийся ходит сквозь всё
 const GROWL_EVERY := Vector2(4.0, 9.0)   # пока бродит, хрипит раз в столько секунд (от и до)
 const FIRST_SHOUT_DELAY := 0.8           # первая реплика после подъёма — не раньше (с)
+const ON_SCREEN_MARGIN := 32.0           # px мира за краем экрана, где зомби ещё «на экране»
 const SLEEP_LINE := "Хррр…"              # что «говорит» спящий
 
 enum Mode { SLEEP, ROAM, RETURN }
@@ -139,6 +140,16 @@ func _stand_up() -> Tween:
 	return t
 
 
+## Виден ли зомби в камере этого экрана (с запасом в клетку). Без камеры — виден.
+func is_on_screen() -> bool:
+	var camera := get_viewport().get_camera_2d()
+	if camera == null:
+		return true
+	var size := get_viewport().get_visible_rect().size / camera.zoom
+	var view := Rect2(camera.get_screen_center_position() - size / 2.0, size).grow(ON_SCREEN_MARGIN)
+	return view.has_point(global_position)
+
+
 ## Хрип (слышно поблизости)
 func growl() -> void:
 	Sfx.play_at(&"growl", global_position, 0.15)
@@ -188,14 +199,23 @@ func _physics_process(delta: float) -> void:
 		return
 	# Звуки — у тех, кто их слышит; ходьба — у того, кто ведёт мир
 	if mode == Mode.ROAM and Net.shows_personal_ui():
-		# Хрип и выкрики — локальные, у каждого клиента свои (сервер их не рассылает)
+		# Хрип и выкрики — локальные, у каждого клиента свои (сервер их не рассылает).
+		# Только у тех, кто сейчас на экране: облачка и звуки 15 зомби по всей карте
+		# заметно грузят телефон, а за экраном их всё равно не видно и не слышно
 		_growl_timer -= delta
-		if _growl_timer <= 0.0:
-			growl()
 		_shout_timer -= delta
+		var on_screen := _growl_timer <= 0.0 or _shout_timer <= 0.0
+		if on_screen:
+			on_screen = is_on_screen()
+		if _growl_timer <= 0.0:
+			if on_screen:
+				growl()
+			else:
+				_growl_timer = randf_range(GROWL_EVERY.x, GROWL_EVERY.y)
 		if _shout_timer <= 0.0:
 			_shout_timer += shout_every
-			_shout()
+			if on_screen:
+				_shout()
 	if _uprising == null or not Net.runs_world():
 		return   # на клиенте зомби двигает синхронизация с сервера
 	match mode:

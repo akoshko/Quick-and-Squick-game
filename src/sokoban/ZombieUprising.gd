@@ -357,6 +357,21 @@ func set_collected(value: int) -> void:
 
 
 # Отсчёт времени: идёт у всех, а решает, что время вышло, только сервер
+# Сервер: кто наступил на стаканчик. Список игроков — один раз на кадр для всех стаканчиков
+func _physics_process(_delta: float) -> void:
+	if state != State.ACTIVE or _cups.is_empty() or not Net.runs_world():
+		return
+	var players := _players()
+	for id: int in _cups.keys():
+		var cup := _cups.get(id) as CoffeeCup
+		if not is_instance_valid(cup):
+			continue
+		for player in players:
+			if cup.can_be_taken_by(player):
+				take_coffee(id, player)
+				break
+
+
 func _process(delta: float) -> void:
 	if state != State.ACTIVE:
 		return

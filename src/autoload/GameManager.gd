@@ -28,6 +28,8 @@ func unlock_achievement(id: StringName) -> void:
 		return
 	_unlocked_achievements[id] = true
 	achievement_unlocked.emit(id)
+	# Прятки засчитывает сам клиент: сервер должен узнать, иначе не выдаст награду
+	Net.report_client_achievement(id)
 
 
 func sync_reward_achievements(earned: Array) -> void:

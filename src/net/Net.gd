@@ -12,6 +12,10 @@ const PERSONAL_CALLS := {
 	&"Quests": [&"complete", &"remove_quest", &"reset", &"net_add_quest"],
 	&"GameManager": [&"unlock_achievement", &"sync_reward_achievements", &"reset_achievements"],
 }
+## Достижения, которые засчитывает клиент: их личный квест (прятки) идёт у него, а сервер видит
+## только действия. Заявку клиента сервер принимает, если сам передавал этому игроку действие
+## с целью, выдающей это достижение (метод witnessed_achievement() у цели или её родителя).
+const CLIENT_ACHIEVEMENTS: Array[StringName] = [&"hide_and_seek"]
 
 signal link_changed(state: int, reason: String)
 ## Server: a peer confirmed its world scene is ready for the current epoch (NetWorld shows it the characters).
@@ -37,6 +41,8 @@ var replaying := false
 ## Сервер: пир, от имени чьего персонажа сейчас выполняется действие; личные события (квесты,
 ## ачивки) уходят ему. ACTOR_EVERYONE — всем игрокам, ACTOR_NOBODY — никому (игрок отключён).
 var _actor_peer := ACTOR_EVERYONE
+## Сервер: player_id -> {достижение: true} — игрок действовал с целью, которая его выдаёт
+var _witnessed: Dictionary = {}
 
 
 func _ready() -> void:
@@ -188,9 +194,42 @@ func as_player(player: Node, action: Callable) -> void:
 func route_personal_interact(peer: int, target: Node) -> bool:
 	if not is_server():
 		return false
+	_witness(peer, target)
 	var ws := world_sync()
 	if ws != null:
 		ws.send_personal_interact(peer, target)
+	return true
+
+
+# Сервер: запомнить, что игрок пира peer действовал с целью, выдающей клиентское достижение
+func _witness(peer: int, target: Node) -> void:
+	var node := target
+	while node != null and not node.has_method(&"witnessed_achievement"):
+		node = node.get_parent()
+	if node == null or server == null:
+		return
+	var player_id := server.registry.player_for_peer(peer)
+	if player_id == "":
+		return
+	if not _witnessed.has(player_id):
+		_witnessed[player_id] = {}
+	_witnessed[player_id][node.witnessed_achievement()] = true
+
+
+## Клиент: сообщить серверу о достижении, которое засчитал сам (CLIENT_ACHIEVEMENTS)
+func report_client_achievement(id: StringName) -> void:
+	if client != null and id in CLIENT_ACHIEVEMENTS:
+		client.send_achievement(id)
+
+
+## Сервер: проверить заявку клиента и записать достижение в его профиль (для наград)
+func claim_achievement_for(peer: int, id: StringName) -> bool:
+	if server == null or not id in CLIENT_ACHIEVEMENTS:
+		return false
+	var player_id := server.registry.player_for_peer(peer)
+	if player_id == "" or not _witnessed.get(player_id, {}).has(id):
+		return false
+	award_player_achievement(server.registry.token_for_player(player_id), id)
 	return true
 
 
@@ -358,6 +397,12 @@ func world_ready(epoch: int) -> void:
 func register(token: String) -> void:
 	if server != null:
 		server.on_register(multiplayer.get_remote_sender_id(), token)
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func claim_achievement(id: StringName) -> void:
+	if server != null:
+		claim_achievement_for(multiplayer.get_remote_sender_id(), id)
 
 
 @rpc("any_peer", "call_remote", "reliable")

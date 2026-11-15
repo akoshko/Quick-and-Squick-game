@@ -26,13 +26,11 @@ func _ready() -> void:
 func _physics_process(delta: float) -> void:
 	_time += delta
 	_sprite.position.y = -4.0 + sin(_time * 3.0) * 1.5   # покачивается над полом
-	if _gone or uprising == null or not Net.runs_world():
-		return
-	for node in get_tree().get_nodes_in_group(Player.GROUP):
-		var player := node as Player
-		if player and player.global_position.distance_to(global_position) < PICK_DISTANCE:
-			uprising.take_coffee(id, player)
-			return
+
+
+## Сервер: игрок рядом — стаканчик его (ZombieUprising проверяет все стаканчики разом)
+func can_be_taken_by(player: Player) -> bool:
+	return not _gone and player.global_position.distance_to(global_position) < PICK_DISTANCE
 
 
 ## Исчезнуть (with_effect — с надписью «+кофе», иначе тихо)

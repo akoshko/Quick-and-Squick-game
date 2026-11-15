@@ -118,10 +118,24 @@ func _collect(full: bool) -> Dictionary:
 		var state := state_of(node)
 		if full:
 			out[key] = state
-		elif _last_sent_states.get(key) != state:
-			out[key] = state
-			_last_sent_states[key] = state
+			continue
+		var last: Variant = _last_sent_states.get(key)
+		if last == state:
+			continue
+		_last_sent_states[key] = state
+		# Идёт, а остальное прежнее (зомби, модератор) — шлём одну позицию: так за тик
+		# уходит в разы меньше, а клиент уже знает остальное из прошлых рассылок
+		out[key] = {POSITION_KEY: state[POSITION_KEY]} 			if last is Dictionary and state.has(POSITION_KEY) and _same_except_position(last, state) else state
 	return out
+
+
+static func _same_except_position(a: Dictionary, b: Dictionary) -> bool:
+	if a.size() != b.size():
+		return false
+	for k: Variant in b:
+		if k != POSITION_KEY and (not a.has(k) or a[k] != b[k]):
+			return false
+	return true
 
 
 func _send_changes() -> void:
@@ -171,7 +185,8 @@ func receive_states(states: Dictionary) -> void:
 			var state := states[key] as Dictionary
 			if state.has(POSITION_KEY) and node is Node2D:
 				_glide_to(node, Vector2(state[POSITION_KEY] as Vector2i))
-			_apply_rest(node, state))
+			if state.size() > 1 or not state.has(POSITION_KEY):
+				_apply_rest(node, state))
 
 
 ## Сервер -> клиент: повторить вызов метода предмета (Net.world_call)

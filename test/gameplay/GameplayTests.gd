@@ -469,7 +469,8 @@ func _test_quests() -> void:
 		"Onboarding lines point left to coworking, down to snacks and right to the bean bag fortress")
 	_check(NPC.parse_line("Перекусить в зоне снэков [down]")[0] == "Перекусить в зоне снэков"
 		and NPC.parse_line("Без стрелки")[1] == Vector2.ZERO, "Arrow markers are removed from the bubble text")
-	var bag: BeanBag = _game.get_node("BeanBag1")
+	var bag: BeanBag = _game.get_node("SokobanBag1")
+	var bag_home := bag.global_position
 	_check(npc.npc_name == "Елена Анатольевна" and npc.dialogue_quest_id == "main",
 		"Map applies the quest-specific NPC override")
 	var bubble_style := npc._panel.get_theme_stylebox("panel")
@@ -496,7 +497,8 @@ func _test_quests() -> void:
 	await _wait(0.5)
 	_check(bag.global_position == bag_start + Vector2(0, 32), "Bean bag moves one cell when pushed")
 	_check(Quests.is_done("main") and _progress._check.texture == QuestProgress.CHECK_DONE,
-		"Final step completes the quest and ticks the HUD checkbox")
+		"Pushing a sokoban bag completes the final step and ticks the HUD checkbox")
+	bag.displace_to(bag_home)
 	_check(_progress._check.custom_minimum_size.x >= _progress._task.get_theme_font_size("font_size"),
 		"HUD checkbox is at least as large as the task text")
 	_check(GameManager.has_achievement(&"first_steps"), "Main quest awards First Steps")
@@ -1015,6 +1017,31 @@ func _test_world_sync_diff() -> void:
 	_check(changes.keys() == [key] and changes[key][WorldSync.POSITION_KEY] == Vector2i(bag.global_position.round()),
 		"WorldSync sends only the object that changed")
 	_check(ws._collect(true).size() == first.size(), "A world_ready snapshot contains the whole shared world")
+	# Идущий зомби: в тик уходит одна позиция, а смена режима — целиком
+	var zombie: ZombieModerator = _game.get_node("ZombieUprising/Zombie4")
+	var zombie_key := str(_game.get_path_to(zombie))
+	var zombie_home := zombie.global_position
+	zombie.global_position += Vector2(4, 0)
+	changes = ws._collect(false)
+	_check(changes.get(zombie_key, {}).keys() == [WorldSync.POSITION_KEY],
+		"A walking zombie sends only its position, not its unchanged mode")
+	zombie.mode = ZombieModerator.Mode.RETURN
+	changes = ws._collect(false)
+	_check(changes.get(zombie_key, {}).has("mode") and changes[zombie_key].has(WorldSync.POSITION_KEY),
+		"A changed mode is sent together with the rest of the state")
+	zombie.mode = ZombieModerator.Mode.SLEEP
+	ws._collect(false)
+	ws.receive_states({zombie_key: {WorldSync.POSITION_KEY: Vector2i(zombie_home)}})
+	_check(zombie.mode == ZombieModerator.Mode.SLEEP and zombie.asleep,
+		"A position-only update leaves the rest of the client state as it was")
+	ws._stop_glide(zombie)
+	var view_center := get_viewport().get_camera_2d().get_screen_center_position()
+	zombie.global_position = view_center + Vector2(4000, 0)
+	var far_off := not zombie.is_on_screen()
+	zombie.global_position = view_center
+	_check(far_off and zombie.is_on_screen(),
+		"Only zombies in the camera view shout and growl; far ones stay quiet")
+	zombie.global_position = zombie_home
 	ws.free()
 
 
@@ -1095,7 +1122,18 @@ func _test_server_forwards_personal() -> void:
 		Net.as_actor(FAKE_PEER, laptop.interact.bind(_player))
 		Quests.complete(quest_id)
 		Net.as_actor(FAKE_PEER, GameManager.unlock_achievement.bind(&"net_test_achievement"))
-		FloatingText.spawn(_game, Vector2.ZERO, "сервер"))
+		FloatingText.spawn(_game, Vector2.ZERO, "сервер")
+		var hide: Node = _game.get_node("HideAndSeek")
+		_check(not Net.claim_achievement_for(FAKE_PEER, &"hide_and_seek")
+			and not Net.claim_achievement_for(FAKE_PEER, &"boss_victory"),
+			"The server rejects a client achievement the player was not seen earning")
+		Net.route_personal_interact(FAKE_PEER, hide.get_node("Participant"))
+		_check(Net.claim_achievement_for(FAKE_PEER, &"hide_and_seek")
+			and registry.achievements_of(token).has(&"hide_and_seek")
+			and registry.equip_accessory(FAKE_PEER, "detective") == player_id
+			and not Net.claim_achievement_for(FAKE_PEER, &"boss_victory"),
+			"Hide-and-seek finished on the client reaches the server and unlocks the detective glasses"))
+	Net._witnessed.clear()
 	var dialogue_stayed_closed_on_server: bool = not npc._bubble.visible
 	_check(dialogue_stayed_closed_on_server, "The server leaves NPC dialogue to the player's client")
 	_check(laptop._pokes == pokes + 1, "The server runs a shared interaction for a network player")
@@ -1161,6 +1199,12 @@ func _test_zombie_uprising() -> void:
 	for i in terminal.pokes_needed:
 		terminal.interact(_player)
 	await _wait(0.5)
+	var first_cup: CoffeeCup = uprising._cups.values()[0]
+	_player.displace_to(first_cup.global_position)
+	await get_tree().physics_frame
+	await get_tree().physics_frame
+	_check(uprising.collected == 1 and not uprising._cups.values().has(first_cup),
+		"Walking onto a coffee cup picks it up")
 	while uprising.state == ZombieUprising.State.ACTIVE and not uprising._cups.is_empty():
 		uprising.take_coffee(uprising._cups.keys()[0], _player)
 	_check(not uprising.is_failed and uprising.state == ZombieUprising.State.CALMING

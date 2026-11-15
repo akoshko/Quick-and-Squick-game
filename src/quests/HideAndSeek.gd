@@ -30,6 +30,12 @@ func _ready() -> void:
 	_refresh()
 
 
+## Сервер: кто действовал с тайником или найденным участником, может засчитать прятки
+## (Net.CLIENT_ACHIEVEMENTS — сам квест идёт у клиента)
+func witnessed_achievement() -> StringName:
+	return &"hide_and_seek"
+
+
 func interact(_player: Player) -> void:
 	if not _searching or _participant.visible:
 		return

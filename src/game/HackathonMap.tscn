@@ -302,27 +302,21 @@ position = Vector2(1040, 112)
 
 [node name="SokobanBag1" parent="." unique_id=616365621 instance=ExtResource("8_bag")]
 position = Vector2(1136, 208)
-quest_id = ""
 
 [node name="SokobanBag2" parent="." unique_id=884123060 instance=ExtResource("8_bag")]
 position = Vector2(1296, 208)
-quest_id = ""
 
 [node name="SokobanBag3" parent="." unique_id=2030668052 instance=ExtResource("8_bag")]
 position = Vector2(1168, 240)
-quest_id = ""
 
 [node name="SokobanBag4" parent="." unique_id=1547413186 instance=ExtResource("8_bag")]
 position = Vector2(1200, 240)
-quest_id = ""
 
 [node name="SokobanBag5" parent="." unique_id=1585973369 instance=ExtResource("8_bag")]
 position = Vector2(1232, 240)
-quest_id = ""
 
 [node name="SokobanBag6" parent="." unique_id=594147459 instance=ExtResource("8_bag")]
 position = Vector2(1200, 272)
-quest_id = ""
 
 [node name="ModeratorLounge" parent="." unique_id=1365280951 instance=ExtResource("12_mod")]
 position = Vector2(1328, 368)

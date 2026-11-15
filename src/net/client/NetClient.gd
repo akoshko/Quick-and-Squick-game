@@ -197,6 +197,12 @@ func _send_accessory(id: String) -> void:
 		_net.equip_accessory.rpc_id(1, id)
 
 
+## Достижение, которое засчитал этот клиент (Net.CLIENT_ACHIEVEMENTS) — серверу, для наград
+func send_achievement(id: StringName) -> void:
+	if not _net.is_screen() and _connected and _mp.get_connection_status() == MultiplayerPeer.CONNECTION_CONNECTED:
+		_net.claim_achievement.rpc_id(1, id)
+
+
 func _send(type: String, data := {}) -> void:
 	if _ws != null and _ws.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		_ws.send_text(Msg.encode(type, data))
