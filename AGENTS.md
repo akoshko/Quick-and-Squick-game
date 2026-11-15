@@ -16,9 +16,13 @@ Open `project.godot` in Godot to edit scenes, inspect imports, and test gameplay
 
 ## Style and Naming
 
-Follow the surrounding file’s formatting. GDScript functions and variables use `snake_case`; script and scene filenames follow the existing `PascalCase` pattern (for example, `VictoryScreen.gd` and `VictoryScreen.tscn`). Keep related scenes and scripts together, and use `res://` paths for project resources.
+Follow the surrounding file’s formatting. GDScript functions and variables use `snake_case`. Script and scene filenames follow the existing `PascalCase` pattern (for example, `BeanBag.gd` and `BeanBag.tscn`). Keep related scenes and scripts together, and use `res://` paths for project resources.
 
 GohuFont is configured through `assets/GohuTheme.tres`. Keep MSDF enabled for small world-space text enlarged by the camera, and pass GohuFont explicitly to `draw_string` calls. Quest checkmark sizes are configured separately for the active quest panel and the “All Quests” window; after changing either size, check both panels in portrait orientation.
+
+## Multiplayer
+
+Run shared world simulation only where `Net.runs_world()` is true. Clients and the projector apply replicated state through `WorldSync`. Keep synchronized node paths stable across server and client scenes, and limit `apply_net_state()` to updating the local representation. Route personal quest and achievement updates to the intended player.
 
 ## Testing
 
@@ -34,7 +38,9 @@ When changing default NPC dialogue, check scene overrides and verify dialogue th
 
 When changing where an NPC appears or its draw order, run the scene in a Godot window with the player nearby. Visually verify that the NPC appears in the intended spot and that the sprites overlap in the intended order.
 
-When changing the HUD or achievement notifications, use portrait mode to check that notifications do not cover the current quest, the boss health bar, or journal controls. Trigger two notifications in quick succession and verify that both appear in order, including when the journal is opened and closed between them.
+When changing the HUD or achievement notifications, use portrait mode to check that notifications do not cover the current quest, the boss health bar, journal controls, or the emote button. Trigger two notifications in quick succession and verify that both appear in order, including when the journal is opened and closed between them. For changes to the shared HUD, also check the projector view (`?view=screen`) for the full map, join QR code, and active shared indicators.
+
+When changing shared world state, verify with two clients that both see the same world. Reconnect one client and check that it receives current state without replaying completed events. When changing the quest journal, check that opening it in multiplayer blocks local character input while the session continues.
 
 Add new achievements to the shared list in `src/quests/QuestPanel.gd` and unlock them through `GameManager.unlock_achievement(id)`. For hidden achievements, verify that the title and description are revealed only after unlocking.
 
