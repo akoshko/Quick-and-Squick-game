@@ -24,8 +24,9 @@ const FLASH_SHADER := """
 shader_type canvas_item;
 uniform float flash : hint_range(0.0, 1.0) = 0.0;
 void fragment() {
-	vec4 c = texture(TEXTURE, UV) * COLOR;
-	COLOR = vec4(mix(c.rgb, vec3(1.0), flash), c.a);
+	// В Godot 4 COLOR уже содержит цвет картинки (текстура × modulate) —
+	// повторное умножение на texture() делало спрайт темнее и насыщеннее
+	COLOR = vec4(mix(COLOR.rgb, vec3(1.0), flash), COLOR.a);
 }
 """
 

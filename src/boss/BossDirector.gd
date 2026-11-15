@@ -33,7 +33,7 @@ enum EndReason { NONE, DEFEATED, LEFT, DISMISSED, RESTART }
 
 @export var interval := 60.0      ## секунд после победы до следующего босса
 @export var first_delay := 60.0   ## когда появится первый босс
-@export var boss_hp := 3
+@export var boss_hp := 50
 @export var boss_lifetime := 0.0  ## сколько ждёт, прежде чем уползти (0 — сидит, пока не победят)
 
 var _time_left := 0.0

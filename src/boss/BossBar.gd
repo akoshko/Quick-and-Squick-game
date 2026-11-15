@@ -16,24 +16,30 @@ var _name: Label
 var _bar: SegmentBar
 var _banner: Label
 var _fade: Tween
-var _quest_panel: PanelContainer
+var _quest_panel: PanelContainer   # плашка текущего квеста (в портрете полоска встаёт под неё)
 
 
-## Полоска из делений, нарисованная кодом
+## Полоска из делений, нарисованная кодом. Если здоровья много
+## (больше MAX_SEGMENTS) — сплошная полоса с рисками через каждые TICK_EVERY.
 class SegmentBar extends Control:
+	const MAX_SEGMENTS := 10
+	const TICK_EVERY := 10
 	var segments := 3
 	var hp := 3.0
 	var trail := 3.0   # «след урона»: догоняет hp с задержкой
 
 	func _process(delta: float) -> void:
 		if trail > hp:
-			trail = move_toward(trail, hp, delta * 1.5)
+			trail = move_toward(trail, hp, delta * maxf(1.5, segments * 0.1))   # при большом запасе — быстрее
 			queue_redraw()
 
 	func _draw() -> void:
 		var r := Rect2(Vector2.ZERO, size)
 		draw_rect(r.grow(2), Color(0.05, 0.04, 0.04, 0.9))                 # подложка
 		draw_rect(r.grow(2), Color(0.55, 0.47, 0.32), false, 1.0)          # тонкая рамка
+		if segments > MAX_SEGMENTS:
+			_draw_continuous(r)
+			return
 		var gap := maxf(2.0, size.x * 0.006)
 		var seg_w := (size.x - gap * (segments - 1)) / segments
 		for i in segments:
@@ -46,6 +52,21 @@ class SegmentBar extends Control:
 			if fill > 0.0:
 				draw_rect(Rect2(seg.position, Vector2(seg_w * fill, size.y)), Color(0.62, 0.08, 0.08))
 				draw_rect(Rect2(seg.position, Vector2(seg_w * fill, size.y * 0.3)), Color(0.78, 0.18, 0.14))
+
+	func _draw_continuous(r: Rect2) -> void:
+		var total := float(maxi(segments, 1))
+		draw_rect(r, Color(0.16, 0.05, 0.05))                                # пусто
+		var trail_w := r.size.x * clampf(trail / total, 0.0, 1.0)
+		if trail_w > 0.0:
+			draw_rect(Rect2(r.position, Vector2(trail_w, r.size.y)), Color(0.95, 0.85, 0.55))
+		var fill_w := r.size.x * clampf(hp / total, 0.0, 1.0)
+		if fill_w > 0.0:
+			draw_rect(Rect2(r.position, Vector2(fill_w, r.size.y)), Color(0.62, 0.08, 0.08))
+			draw_rect(Rect2(r.position, Vector2(fill_w, r.size.y * 0.3)), Color(0.78, 0.18, 0.14))
+		# Риски через каждые TICK_EVERY очков — видно, сколько примерно осталось
+		for i in range(TICK_EVERY, segments, TICK_EVERY):
+			var x := r.size.x * i / total
+			draw_line(Vector2(x, 0), Vector2(x, r.size.y), Color(0.05, 0.04, 0.04, 0.8), 1.0)
 
 
 func _ready() -> void:
@@ -143,25 +164,36 @@ func banner_text() -> String:
 	return _banner.text
 
 
-# Размеры — от размера экрана: полоса по центру сверху
+# Размеры — от размера экрана: на широком экране полоса по центру сверху,
+# в портрете — под плашкой текущего квеста и той же ширины
 func _layout() -> void:
 	if not is_inside_tree():
 		return
 	var screen := get_viewport().get_visible_rect().size
+	var step := UiSpacing.step(screen)
 	var font := maxi(10, int(screen.y * 0.03))
 	var bar_size := Vector2(screen.x * 0.42, maxf(6.0, screen.y * 0.016))
-	var step := UiSpacing.step(screen)
+	var left := (screen.x - bar_size.x) / 2.0
 	var top := float(step * 4)
-	if screen.y > screen.x and not Net.is_screen() and is_instance_valid(_quest_panel):
-		top = _quest_panel.get_rect().end.y + step * 2
+	var portrait := screen.y > screen.x and not Net.is_screen() and is_instance_valid(_quest_panel)
+	if portrait:
+		# Под плашкой квеста, той же ширины и с тем же левым краем
+		var quest_rect := _quest_panel.get_rect()
+		left = quest_rect.position.x
+		top = quest_rect.end.y + step * 2
+		bar_size.x = quest_rect.size.x
+		font = maxi(9, int(minf(screen.y, screen.x * 1.45) * 0.03))
 
+	_name.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART if portrait else TextServer.AUTOWRAP_OFF   # длинный титул — в две строки
+	_name.custom_minimum_size.x = bar_size.x if portrait else 0.0
 	_name.add_theme_font_size_override("font_size", font)
-	_name.add_theme_constant_override("outline_size", maxi(2, int(font / 6.0)))
+	# В портрете обводка толще — титул читается на светлом полу
+	_name.add_theme_constant_override("outline_size", maxi(4, int(font / 4.0)) if portrait else maxi(2, int(font / 6.0)))
 	_name.reset_size()
-	_name.position = Vector2((screen.x - bar_size.x) / 2.0, top)
+	_name.position = Vector2(left, top)
 
 	_bar.size = bar_size
-	_bar.position = Vector2((screen.x - bar_size.x) / 2.0, top + _name.size.y + step)
+	_bar.position = Vector2(left, top + _name.size.y + step)
 
 	var banner_font := maxi(16, int(minf(screen.y * 0.075, screen.x * 0.09)))
 	_banner.add_theme_font_size_override("font_size", banner_font)

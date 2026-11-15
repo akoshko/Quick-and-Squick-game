@@ -120,14 +120,27 @@ func _test_journal_profile() -> void:
 	await get_tree().process_frame
 	var step := UiSpacing.step(get_viewport().get_visible_rect().size)
 	var achievements := _journal._achievement_cards
-	_check(_journal._list.get_theme_stylebox("panel").get_margin(SIDE_TOP) == step * 2
-		and achievements.get_parent().get_theme_constant("margin_top") == step * 2
+	_check(_journal._list.get_parent().get_theme_constant("margin_top") == step * 2
 		and _journal._profile_layout.get_parent().get_theme_constant("margin_top") == step * 2
-		and achievements.get_theme_constant("separation") == step * 2
+		and achievements.get_theme_constant("h_separation") == step * 2
 		and _journal._accessory_grid.get_theme_constant("h_separation") == step * 2,
 		"Journal tabs use the same adaptive inset and card and slot gaps")
+	var badge := _journal._badge
+	_check(tabs.get_tab_count() == 2 and tabs.get_tab_title(0) == "Задания" and tabs.get_tab_title(1) == "Профиль",
+		"The journal badge has exactly two tabs: tasks and profile")
+	_check(badge.size.y > badge.size.x and _journal._role.text == "Участник"
+		and _journal._brand.text.begins_with("TulaHack"), "The journal looks like a vertical TulaHack participant badge")
+	var identity_rect := _journal._profile_preview.get_global_rect().merge(_journal._profile_name.get_global_rect())
+	_check(identity_rect.end.y <= tabs.get_global_rect().position.y
+		and absf(identity_rect.get_center().x - badge.get_global_rect().get_center().x) <= 2.0,
+		"The participant's sprite and nickname are centered on the badge above the tabs")
 	_check(_progress._panel.position == Vector2.ONE * step * 4,
 		"The active quest uses the shared viewport edge margin")
+	var hud_style := _progress._panel.get_theme_stylebox("panel") as StyleBoxFlat
+	var hud_button := _progress._open_button.get_theme_stylebox("normal") as StyleBoxFlat
+	_check(hud_style.bg_color.get_luminance() > 0.8 and hud_style.border_color == QuestPanel.BADGE_RED
+		and hud_style.border_width_top > 0 and hud_button.bg_color == QuestPanel.BADGE_RED,
+		"The HUD task card is styled like the badge: white with a red top stripe and a red journal button")
 	var profile_rect := tabs.get_tab_bar().get_tab_rect(tabs.get_tab_idx_from_control(profile))
 	_check(profile_rect.has_area() and profile_rect.end.x <= tabs.size.x,
 		"The profile tab is visible alongside the existing journal tabs in portrait mode")
@@ -135,10 +148,34 @@ func _test_journal_profile() -> void:
 	await get_tree().process_frame
 	_check(profile.is_visible_in_tree() and _journal._profile_preview.texture == PlayerProfile.texture()
 		and _journal._profile_name.text == PlayerProfile.nickname, "Profile tab shows the saved player appearance")
-	var inventory := _journal._profile_layout.get_child(0) as Control
-	var preview_panel := _journal._profile_layout.get_child(1) as Control
-	_check(preview_panel.position.y >= inventory.position.y + inventory.size.y,
-		"Portrait profile places the preview below the inventory")
+	var inventory := _journal._profile_layout.get_node("Inventory") as Control
+	var achievement_section := _journal._profile_layout.get_node("Achievements") as Control
+	_check(achievement_section.position.y >= inventory.position.y + inventory.size.y,
+		"The profile lists achievements below the items and nickname colors")
+	var first_card: PanelContainer = _journal._cards_by_id[&"first_steps"]
+	_check(not first_card.get_node("Row/Labels").visible, "On a phone achievements are shown as icons only")
+	var card_click := InputEventMouseButton.new()
+	card_click.button_index = MOUSE_BUTTON_LEFT
+	card_click.pressed = true
+	first_card.gui_input.emit(card_click)
+	_check(_journal._achievement_hint.text.begins_with(QuestPanel.ACHIEVEMENTS[&"first_steps"][0]),
+		"Tapping an achievement icon shows its name and description")
+	tabs.current_tab = 0
+	await get_tree().process_frame
+	var swinging := not is_zero_approx(badge.rotation)
+	tabs.current_tab = tabs.get_tab_idx_from_control(profile)
+	for i in 4:
+		await get_tree().process_frame
+	_check(swinging or not is_zero_approx(badge.rotation), "Switching tabs makes the badge swing on its lanyard")
+	profile.scroll_vertical = 10000
+	tabs.current_tab = 0
+	tabs.current_tab = tabs.get_tab_idx_from_control(profile)
+	_check(profile.scroll_vertical == 0, "Switching tabs scrolls the badge back to the top")
+	profile.scroll_vertical = 10000
+	_journal.close()
+	_journal.open()
+	tabs.current_tab = tabs.get_tab_idx_from_control(profile)
+	_check(profile.scroll_vertical == 0, "Reopening the badge starts at the top")
 	var layout_rect := _journal._profile_layout.get_global_rect()
 	var profile_rect_global := profile.get_global_rect()
 	_check(layout_rect.position.x > profile_rect_global.position.x
@@ -176,17 +213,13 @@ func _test_journal_profile() -> void:
 	get_window().size = Vector2i(844, 390)
 	await get_tree().process_frame
 	await get_tree().process_frame
-	_check(preview_panel.position.x >= inventory.position.x + inventory.size.x,
-		"Landscape profile places the preview to the right of the inventory")
-	var preview_bounds := _journal._profile_preview.get_global_rect().merge(_journal._profile_name.get_global_rect())
-	_check(preview_bounds.get_center().distance_to(preview_panel.get_global_rect().get_center()) <= 1.0,
-		"The sprite and nickname are centered together in the preview panel")
+	_check(badge.size.y > badge.size.x, "The journal stays a vertical badge on a wide screen")
+	_check(first_card.get_node("Row/Labels").visible and first_card.get_node("Row/Labels/Title").text == QuestPanel.ACHIEVEMENTS[&"first_steps"][0],
+		"On a computer achievements show their names")
 	var landscape_slot_side := starter.size.x
 	_check(landscape_slot_side > 0 and _journal._accessory_slots.values().all(
 		func(slot: Button) -> bool: return slot.size == Vector2(landscape_slot_side, landscape_slot_side)
 	), "Landscape slots remain uniform squares")
-	_check(locked.position.x < apple.position.x and apple.position.y == empty.position.y,
-		"The wider inventory fits all four items on one row")
 	get_window().size = portrait_size
 	tabs.current_tab = 0
 	get_viewport().push_input(escape)
@@ -423,7 +456,14 @@ func _test_quests() -> void:
 	_check(not Quests.is_done("push_bean_bag"), "Later quest steps cannot be completed early")
 	await _talk(npc)
 	_check(Quests.is_done("talk_npc") and not Quests.is_done("main"), "NPC dialogue advances only the first step")
-	_check(_progress._status.text == Quests.find("push_bean_bag").title, "HUD shows the next step")
+	_check(_progress._task.text == Quests.find("push_bean_bag").title and _progress._check.texture == QuestProgress.CHECK_EMPTY,
+		"HUD shows the next step with an empty checkbox")
+	_check(_progress._open_button.text == "Журнал", "The HUD button is called Journal, like the window it opens")
+	var hud_texts: Array[String] = []
+	for label in _progress.find_children("*", "Label", true, false):
+		hud_texts.append((label as Label).text)
+	_check(not hud_texts.has("Текущий квест") and not hud_texts.has(Quests.find("main").title),
+		"HUD shows only the task, without the 'current quest' header or the quest title")
 	bag.displace_to(Grid.cell_to_world(bag, Vector2i(15, 8)))
 	var bag_start := bag.global_position
 	_player.facing = Vector2i.DOWN
@@ -432,9 +472,10 @@ func _test_quests() -> void:
 	await _press_action()
 	await _wait(0.5)
 	_check(bag.global_position == bag_start + Vector2(0, 32), "Bean bag moves one cell when pushed")
-	_check(Quests.is_done("main") and _progress._done_icon.visible, "Final step completes the quest and shows a checkmark")
-	_check(_progress._done_icon.custom_minimum_size.x >= _progress._status.get_theme_font_size("font_size"),
-		"Completed quest HUD checkmark is at least as large as its status text")
+	_check(Quests.is_done("main") and _progress._check.texture == QuestProgress.CHECK_DONE,
+		"Final step completes the quest and ticks the HUD checkbox")
+	_check(_progress._check.custom_minimum_size.x >= _progress._task.get_theme_font_size("font_size"),
+		"HUD checkbox is at least as large as the task text")
 	_check(GameManager.has_achievement(&"first_steps"), "Main quest awards First Steps")
 	var badge := _journal._accessory_slots[&"first_steps"]
 	_check(badge.modulate == Color.WHITE and not badge.disabled,
@@ -478,15 +519,38 @@ func _test_quests() -> void:
 		_check(result.open_unpaused and not _journal.is_open() and not get_tree().paused,
 			"The journal does not pause network play")
 	_progress._open_button.pressed.emit()
-	var rows := _journal._list.get_root()
-	_check(get_tree().paused and rows.get_child_count() == 3, "Journal opens and lists all three quests together")
-	_check(rows.get_child(0).get_metadata(0) == "never_too_late" and rows.get_child(2).get_metadata(0) == "main",
-		"Journal lists open quests before completed ones")
-	_check(rows.get_child(2).get_icon(0) == QuestPanel.DONE_ICON and not rows.get_child(2).is_selectable(0),
-		"Completed journal rows have a checkmark and cannot be selected")
-	_check(_journal._list.get_theme_constant("icon_max_width") >= _journal._list.get_theme_font_size("font_size"),
-		"Completed journal checkmarks are at least as large as the row text")
-	rows.get_child(1).select(0)
+	await get_tree().process_frame
+	var rows: Array[Node] = _journal._list.get_children().filter(func(row: Node) -> bool: return row is PanelContainer)
+	var open_rows := rows.filter(func(row: Node) -> bool: return not row.get_meta(&"done"))
+	var done_rows := rows.filter(func(row: Node) -> bool: return row.get_meta(&"done"))
+	_check(get_tree().paused and open_rows.size() == 2 and done_rows.size() == 2,
+		"Journal lists the current task of each open quest and every completed task")
+	var text_of := func(row: Node) -> String: return (row.get_node("Line/Text") as RichTextLabel).text
+	_check(open_rows[0].get_meta(&"quest_id") == "never_too_late" and text_of.call(open_rows[0]) == "Перекусить"
+		and not _journal._list.find_children("*", "Tree", true, false).size(),
+		"Journal is a flat checklist of tasks without collapsible quest headings")
+	_check(open_rows.back().get_index() < done_rows.front().get_index(), "Completed tasks are listed below the open ones")
+	var done_check := done_rows[0].get_node("Line/Check") as TextureRect
+	_check(done_check.texture == QuestPanel.CHECK_DONE and text_of.call(done_rows[0]).begins_with("[s]")
+		and done_rows[0].mouse_filter == Control.MOUSE_FILTER_IGNORE,
+		"Completed journal tasks are ticked, struck through and cannot be selected")
+	var text_size := (done_rows[0].get_node("Line/Text") as RichTextLabel).get_theme_font_size("normal_font_size")
+	_check(done_check.custom_minimum_size.x >= text_size, "Journal checkboxes are at least as large as the task text")
+	var sound := _journal._sound_button
+	_check(sound.get_index() == _journal._stuck_button.get_index() - 1, "The sound button sits right next to 'I am stuck'")
+	var master := AudioServer.get_bus_index(&"Master")
+	sound.pressed.emit()
+	var saved := ConfigFile.new()
+	saved.load(Sfx.SETTINGS_PATH)
+	_check(Sfx.muted and AudioServer.is_bus_mute(master) and sound.icon == QuestPanel.SOUND_OFF
+		and saved.get_value("audio", "muted", false), "The sound button mutes the game and remembers it")
+	sound.pressed.emit()
+	_check(not Sfx.muted and not AudioServer.is_bus_mute(master) and sound.icon == QuestPanel.SOUND_ON,
+		"Pressing the sound button again turns the sound back on")
+	var click := InputEventMouseButton.new()
+	click.button_index = MOUSE_BUTTON_LEFT
+	click.pressed = true
+	open_rows[1].gui_input.emit(click)
 	await get_tree().process_frame
 	_check(not get_tree().paused and Quests.selected_quest_id == "work_time",
 		"Selecting a journal row closes it and tracks the chosen quest")
@@ -607,6 +671,14 @@ func _test_boss() -> void:
 	var quest_id := director._quest_id
 	_check(Quests.selected_quest_id == quest_id and boss.title == spawn.boss_title and director._bar.health_bottom() > 0,
 		"Boss spawns with its local title, visible health bar, and tracked quest")
+	await get_tree().process_frame
+	var quest_rect := _progress._panel.get_global_rect()
+	var health_rect := director._bar._bar.get_global_rect()
+	var title_rect := director._bar._name.get_global_rect()
+	_check(title_rect.position.y >= quest_rect.end.y and not health_rect.intersects(quest_rect)
+		and is_equal_approx(health_rect.position.x, quest_rect.position.x)
+		and is_equal_approx(health_rect.size.x, quest_rect.size.x),
+		"In portrait the boss health bar sits under the quest panel at the same width")
 	_check(boss.get_cells().size() == 4 and snacks.all(func(station: SnackStation) -> bool: return station.is_knocked),
 		"Boss occupies four cells and knocks over the affected zone")
 	snack.refill()
@@ -649,9 +721,14 @@ func _test_boss() -> void:
 			and not rect.intersects(_progress._panel.get_global_rect())
 			and not rect.intersects(_progress._open_button.get_global_rect()),
 			"Each portrait notification leaves the boss bar and quest controls clear")
+	_check(director.boss_hp == 50 and boss.max_hp == 50, "The mimic boss has 50 health points")
+	await _wait(0.55)
+	# 50 ударов подряд: окно неуязвимости уже проверено выше, сбрасываем его,
+	# чтобы бой не тянулся почти полминуты
 	for i in range(boss.hp):
-		await _wait(0.55)
+		boss._invulnerable = 0.0
 		boss.interact(_player)
+		await get_tree().process_frame
 	_check(Quests.is_done(quest_id) and GameManager.has_achievement(&"boss_victory"),
 		"Defeating the boss completes its quest and awards the achievement")
 	var blue := _journal._accessory_slots[&"blue"]
