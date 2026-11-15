@@ -73,11 +73,16 @@ func _process(_delta: float) -> void:
 			_ws_open = true
 			_last_seen = now
 			_last_ping = now
-			_send(Msg.HELLO, {
+			var hello := {
 				"token": TokenStore.load_or_create(),
 				"role": "screen" if _net.is_screen() else "player",
 				"version": _net.version,
-			})
+			}
+			# ник и внешность из создания персонажа (формат PlayerProfile.to_dict); сервер их проверяет
+			var profile := get_node_or_null("/root/PlayerProfile")
+			if not _net.is_screen() and profile != null:
+				hello["profile"] = profile.to_dict()
+			_send(Msg.HELLO, hello)
 		while _ws.get_available_packet_count() > 0:
 			var m := Msg.decode(_ws.get_packet().get_string_from_utf8())
 			if m.is_empty():

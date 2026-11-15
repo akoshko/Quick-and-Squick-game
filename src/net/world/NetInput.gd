@@ -3,6 +3,7 @@ extends Node
 ## Клиент (CLIENT): читает те же действия, что Player._read_direction(), и `action`, и шлёт их
 ## серверу RPC NetWorld.submit_input — при изменении и повторно раз в RESEND_SECONDS, чтобы
 ## потерянный ненадёжный пакет не оставил персонажа идущим или стоящим.
+## Пока открыт журнал, шлёт «стоять».
 
 const RESEND_SECONDS := 0.5
 
@@ -20,7 +21,10 @@ func _physics_process(delta: float) -> void:
 		return
 	var dir := Vector2i.ZERO
 	var action := false
-	if GameManager.state != GameManager.GameState.PAUSED:
+	# открытый журнал игру в сети не ставит на паузу (QuestPanel.open): персонаж просто стоит
+	var journal := world.get_parent().get_node_or_null("QuestPanel") as QuestPanel
+	var journal_open := journal != null and journal.is_open()
+	if GameManager.state != GameManager.GameState.PAUSED and not journal_open:
 		dir = Vector2i(
 				int(Input.is_action_pressed("move_right")) - int(Input.is_action_pressed("move_left")),
 				int(Input.is_action_pressed("move_down")) - int(Input.is_action_pressed("move_up")))

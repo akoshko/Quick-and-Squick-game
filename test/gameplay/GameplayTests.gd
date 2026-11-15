@@ -48,6 +48,8 @@ func _run() -> void:
 	_journal = _game.get_node("QuestPanel")
 	_progress = _game.get_node("QuestProgress")
 	_test_profile()
+	_test_network_profile()
+	_test_network_emotes()
 	await _test_map_and_input()
 	await _test_quests()
 	await _test_hide_and_seek()
@@ -85,6 +87,57 @@ func _test_profile() -> void:
 		and clean.hair_color == CharacterLook.HAIR_COLORS[0].id, "Invalid appearance falls back to valid options")
 	_check(_player._sprite.texture == PlayerProfile.texture() and _player._nameplate.text == PlayerProfile.nickname,
 		"The local player uses the saved sprite and nickname")
+
+
+func _test_network_profile() -> void:
+	var valid := PlayerRegistry.clean_profile({"title_first": " Сонный ", "title_second": "Кодер",
+		"hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink"}, 3)
+	_check(valid == {"name": "Сонный Кодер", "hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink"},
+		"Server keeps a valid network profile and trims its nickname words")
+	var forged := PlayerRegistry.clean_profile({"title_first": "<b>Админ</b>", "title_second": "Кодер",
+		"hoodie": "gold", "hair_style": 5, "hair_color": null}, 7)
+	_check(forged.name == "Игрок 7" and forged.hoodie == CharacterLook.HOODIES[0].id
+		and forged.hair_style == CharacterLook.HAIR_STYLES[0].id and forged.hair_color == CharacterLook.HAIR_COLORS[0].id,
+		"Server replaces an unknown nickname with «Игрок N» and unknown looks with defaults")
+	_check(PlayerRegistry.clean_profile("not a dictionary", 2).name == "Игрок 2", "Server survives a malformed profile")
+	var longest := 0
+	for first in CharacterLook.TITLE_FIRST:
+		for second in CharacterLook.TITLE_SECOND:
+			longest = maxi(longest, PlayerRegistry.clean_profile({"title_first": first, "title_second": second}, 1).name.length())
+	_check(longest <= PlayerRegistry.NAME_MAX and longest > 0, "Every creator nickname fits the server length cap")
+
+	var registry := PlayerRegistry.new()
+	var token := "token-0000000000000001"
+	var joined := registry.admit(token, "player", 0.0, {"title_first": "Тайный", "title_second": "Енот", "hoodie": "pink"})
+	registry.bind_peer(joined.player_id, 2)
+	registry.peer_lost(2, 1.0)
+	registry.admit(token, "player", 2.0)
+	var rec: Dictionary = registry.records()[0]
+	_check(rec.name == "Тайный Енот" and rec.skin == "pink/%s/%s" % [CharacterLook.HAIR_STYLES[0].id, CharacterLook.HAIR_COLORS[0].id],
+		"Registry keeps the profile as the name and skin source across a reconnect")
+	registry.admit(token, "player", 3.0, {"title_first": "Бодрый", "title_second": "Ёжик"})
+	_check(registry.profile_of(joined.player_id).name == "Бодрый Ёжик", "A rejoin with a new profile updates it")
+
+	var remote: Player = load("res://src/player/Player.tscn").instantiate()
+	remote.visible = false
+	remote.player_number = 4
+	_game.add_child(remote)
+	_check(remote._label.text == "Игрок 4", "A network player without a profile is labelled «Игрок N»")
+	remote.profile = valid
+	_check(remote._label.text == "Сонный Кодер" and remote._sprite.texture == CharacterLook.build("blue", "mohawk", "pink"),
+		"A replicated profile sets the network player's look and nickname label")
+	remote.free()
+
+
+func _test_network_emotes() -> void:
+	var world: Node = load("res://src/net/world/NetWorld.gd").new()
+	_check(not world.accept_emote("p1", -1, 0.0) and not world.accept_emote("p1", EmoteBubble.NAMES.size(), 0.0),
+		"Server rejects unknown emotes")
+	_check(world.accept_emote("p1", 0, 10.0), "Server accepts a known emote")
+	_check(not world.accept_emote("p1", 1, 10.0 + world.EMOTE_MIN_INTERVAL * 0.5), "Server rate-limits emote spam")
+	_check(world.accept_emote("p2", 1, 10.1), "The emote rate limit is per player")
+	_check(world.accept_emote("p1", 2, 10.0 + world.EMOTE_MIN_INTERVAL), "Emotes are accepted again after the interval")
+	world.free()
 
 
 func _test_map_and_input() -> void:
@@ -203,6 +256,14 @@ func _test_quests() -> void:
 	npc.interact(_player)
 	await _wait(0.5)
 	_check(Quests.selected_quest_id == "never_too_late", "HUD advances after the completion delay")
+	for mode in [NetConfig.Mode.CLIENT, NetConfig.Mode.SCREEN]:
+		Net.config.mode = mode
+		_journal.open()
+		var open_unpaused := _journal.is_open() and not get_tree().paused
+		_journal.close()
+		Net.config.mode = NetConfig.Mode.OFFLINE
+		_check(open_unpaused and not _journal.is_open() and not get_tree().paused,
+			"The journal does not pause network play")
 	_progress._open_button.pressed.emit()
 	var rows := _journal._list.get_root()
 	_check(get_tree().paused and rows.get_child_count() == 3, "Journal opens and lists all three quests together")

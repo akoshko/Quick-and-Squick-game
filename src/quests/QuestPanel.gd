@@ -332,8 +332,11 @@ func _select_quest() -> void:
 func open() -> void:
 	if _root.visible:
 		return
-	_was_paused = get_tree().paused
-	get_tree().paused = true
+	# В сети (телефон, проектор) игру не ставим на паузу: пауза остановила бы и сетевой код
+	# (персонаж «отключился» бы). Свой персонаж просто не слушает ввод, пока журнал открыт (NetInput).
+	if not Net.is_network():
+		_was_paused = get_tree().paused
+		get_tree().paused = true
 	_root.show()
 	_achievement_popups.hide()
 	_close_button.grab_focus()
@@ -346,8 +349,14 @@ func close() -> void:
 	if focused and _root.is_ancestor_of(focused):
 		focused.release_focus()
 	_root.hide()
-	get_tree().paused = _was_paused
+	if not Net.is_network():
+		get_tree().paused = _was_paused
 	_achievement_popups.show()
+
+
+## Открыт ли журнал (в сети ввод своему персонажу на это время не уходит)
+func is_open() -> bool:
+	return _root != null and _root.visible
 
 
 # «Я застрял»: закрываем меню и возвращаем своего персонажа на точку возрождения
@@ -360,7 +369,7 @@ func _on_stuck_pressed() -> void:
 
 
 func _exit_tree() -> void:
-	if _root and _root.visible:
+	if _root and _root.visible and not Net.is_network():
 		get_tree().paused = _was_paused
 
 

@@ -19,6 +19,9 @@ properties/2/replication_mode = 2
 properties/3/path = NodePath(".:held")
 properties/3/spawn = true
 properties/3/replication_mode = 2
+properties/4/path = NodePath(".:profile")
+properties/4/spawn = true
+properties/4/replication_mode = 2
 
 [node name="Player" type="CharacterBody2D" unique_id=1878393648]
 collision_layer = 2
@@ -36,9 +39,9 @@ shape = SubResource("RectangleShape2D_player")
 [node name="Label" type="Label" parent="."]
 visible = false
 z_index = 10
-offset_left = -40.0
+offset_left = -80.0
 offset_top = -32.0
-offset_right = 40.0
+offset_right = 80.0
 offset_bottom = -18.0
 mouse_filter = 2
 theme_override_colors/font_outline_color = Color(0.1, 0.1, 0.15, 1)

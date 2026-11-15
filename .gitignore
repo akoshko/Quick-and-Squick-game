@@ -23,3 +23,5 @@ App.g.puml
 checks/
 
 src/net/version.txt
+/deploy/.env.prod
+/deploy/READ_AND_REMOVE_AFTER_CHECKED.md

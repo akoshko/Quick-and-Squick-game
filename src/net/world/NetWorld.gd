@@ -8,12 +8,16 @@ signal player_count_changed(n: int)
 
 const PLAYER_SCENE := preload("res://src/player/Player.tscn")
 const DEFAULT_SPAWN := Vector2(176, 176)
+## Сервер: не чаще одной эмоции игрока за столько секунд (своё облачко клиент и так не даёт
+## показать, пока не исчезло прошлое — ограничение только от подделанных клиентов).
+const EMOTE_MIN_INTERVAL := 0.3
 
 var player_count: int = 0
 
 var _net: Node
 var _spawn_position := DEFAULT_SPAWN
 var _dynamic_bodies: Array[CollisionObject2D] = []   # сервер: всё, кроме карты и игроков
+var _last_emote: Dictionary = {}   # сервер: player_id -> время последней принятой эмоции (с)
 
 @onready var _players: Node2D = $Players
 
@@ -37,6 +41,8 @@ func _ready() -> void:
 		input.name = "NetInput"
 		input.world = self
 		add_child(input)
+		# своя эмоция (Player.emoted) уходит серверу, он рассылает её остальным
+		_players.child_entered_tree.connect(_on_client_player_added)
 	if not _net.is_server():
 		# сцена мира готова: сервер покажет персонажей только после этого подтверждения (Net.ack_world)
 		_net.ack_world.call_deferred()
@@ -93,6 +99,7 @@ func _spawn(player_id: String, number: int) -> Player:
 	p.name = player_id
 	p.position = _free_spawn_position()
 	p.player_number = number
+	p.profile = _net.server.registry.profile_of(player_id)
 	p.network_controlled = true
 	# видимость задаётся до add_child: первый спавн уходит только подтвердившим world_ready
 	var sync := p.get_node("MultiplayerSynchronizer") as MultiplayerSynchronizer
@@ -132,6 +139,7 @@ func _on_player_joined(player_id: String, _peer_id: int) -> void:
 	var p := _player(player_id)
 	if p != null:
 		p.held = false   # вернулся из удержания: тот же персонаж и место
+		p.profile = _net.server.registry.profile_of(player_id)   # мог сменить профиль, перезагрузив страницу
 	else:
 		_spawn(player_id, _number_of(player_id))
 	_update_player_count()
@@ -146,6 +154,7 @@ func _on_player_held(player_id: String) -> void:
 
 
 func _on_player_removed(player_id: String) -> void:
+	_last_emote.erase(player_id)
 	var p := _player(player_id)
 	if p != null:
 		_players.remove_child(p)
@@ -219,3 +228,51 @@ func set_player_count(n: int) -> void:
 		return
 	player_count = n
 	player_count_changed.emit(n)
+
+
+# --- эмоции ---
+
+func _on_client_player_added(node: Node) -> void:
+	if node is Player and not (node as Player).emoted.is_connected(_send_emote):
+		(node as Player).emoted.connect(_send_emote)
+
+
+# Клиент: своя эмоция (Player.try_emote уже показал облачко) — на сервер
+func _send_emote(emote: int) -> void:
+	var mp := multiplayer.multiplayer_peer
+	if mp == null or mp is OfflineMultiplayerPeer or mp.get_connection_status() != MultiplayerPeer.CONNECTION_CONNECTED:
+		return
+	submit_emote.rpc_id(1, emote)
+
+
+## Сервер: принять ли эмоцию игрока в момент now (с): известная эмоция и не чаще
+## EMOTE_MIN_INTERVAL. Принятая запоминается для следующей проверки.
+func accept_emote(player_id: String, emote: int, now: float) -> bool:
+	if player_id == "" or emote < 0 or emote >= EmoteBubble.NAMES.size():
+		return false
+	if _last_emote.has(player_id) and now - float(_last_emote[player_id]) < EMOTE_MIN_INTERVAL:
+		return false
+	_last_emote[player_id] = now
+	return true
+
+
+@rpc("any_peer", "call_remote", "reliable")
+func submit_emote(emote: int) -> void:
+	if not _net.is_server():
+		return
+	var sender := multiplayer.get_remote_sender_id()
+	var pid: String = _net.server.registry.player_for_peer(sender)
+	var p := _player(pid)
+	if p == null or p.held or not accept_emote(pid, emote, Time.get_ticks_msec() / 1000.0):
+		return
+	# всем, чья сцена мира готова (телефоны и проектор), кроме автора: у него облачко уже есть
+	for peer: int in _net.world_ready_peers:
+		if peer != sender and peer in multiplayer.get_peers():
+			play_emote.rpc_id(peer, pid, emote)
+
+
+@rpc("authority", "call_remote", "reliable")
+func play_emote(player_id: String, emote: int) -> void:
+	var p := _player(player_id)
+	if p != null and emote >= 0 and emote < EmoteBubble.NAMES.size():
+		p.show_emote(emote)

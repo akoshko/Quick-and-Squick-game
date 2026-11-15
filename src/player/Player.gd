@@ -71,6 +71,12 @@ var remote_action := false
 	set(value):
 		player_number = value
 		_update_label()
+## Профиль сетевого игрока с сервера (PlayerRegistry.clean_profile: {name, hoodie, hair_style,
+## hair_color}; реплицируется): внешность и подпись над головой. Пустой — «Игрок N» и спрайт сцены.
+@export var profile: Dictionary = {}:
+	set(value):
+		profile = value
+		_apply_profile()
 ## Игрок отключился, персонаж ждёт его возвращения (реплицируется)
 @export var held := false:
 	set(value):
@@ -110,7 +116,7 @@ func _ready() -> void:
 		# проектор показывает всю карту мелко: подпись крупнее, растёт вверх от низа по центру
 		_label.pivot_offset = Vector2(_label.size.x * 0.5, _label.size.y)
 		_label.scale = Vector2.ONE * SCREEN_LABEL_SCALE
-	_update_label()
+	_apply_profile()
 
 	if Net.is_network():
 		# В сети «свой» — только персонаж этого клиента; на сервере своих нет
@@ -123,7 +129,7 @@ func _ready() -> void:
 		_net_last_pos = position
 		set_physics_process(false)
 		if is_local:
-			# Эмоции в сети пока локальные: облачко видно только на этом клиенте
+			# Свои эмоции: облачко сразу здесь, остальным их рассылает сервер (NetWorld.submit_emote)
 			var bar := EmoteBar.new()
 			bar.player = self
 			add_child(bar)
@@ -630,15 +636,18 @@ func _follow_replicated_position(delta: float) -> void:
 	_is_moving = _net_lag != Vector2.ZERO
 
 
-## Имя игрока: единственный источник для подписи и админки (позже сюда придёт выбор имени).
+## Подпись над сетевым игроком: ник из профиля (его проверил сервер), иначе «Игрок N».
 func display_name() -> String:
-	return "Игрок %d" % player_number
+	var nick := str(profile.get("name", ""))
+	return nick if nick != "" else "Игрок %d" % player_number
 
 
-## Идентификатор текущего скина: базовое имя файла текстуры спрайта (например "chel_1").
-func skin_id() -> String:
-	var tex: Texture2D = _sprite.texture if _sprite != null else null
-	return tex.resource_path.get_file().get_basename() if tex != null else ""
+# Внешность и подпись из сетевого профиля. Серверу текстура не нужна (он ничего не рисует).
+func _apply_profile() -> void:
+	if _sprite != null and not profile.is_empty() and not Net.is_server():
+		_sprite.texture = CharacterLook.build(str(profile.get("hoodie", "")),
+				str(profile.get("hair_style", "")), str(profile.get("hair_color", "")))
+	_update_label()
 
 
 func _update_label() -> void:

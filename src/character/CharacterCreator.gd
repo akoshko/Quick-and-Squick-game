@@ -173,6 +173,7 @@ func _start() -> void:
 	PlayerProfile.set_nickname(_options[Row.FIRST][_index[Row.FIRST]], _options[Row.SECOND][_index[Row.SECOND]])
 	PlayerProfile.set_look(_look_id(Row.HOODIE), _look_id(Row.STYLE), _look_id(Row.COLOR))
 	PlayerProfile.save_profile()
+	Net.start_client()   # сетевая игра (CLIENT): подключиться с выбранным профилем; офлайн — ничего
 	get_tree().change_scene_to_file(GAME_SCENE)
 
 

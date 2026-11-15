@@ -99,7 +99,7 @@ func kick(player_id: String) -> bool:
 			known = true
 	if not known:
 		return false
-	var peer := registry.ban(player_id, _now(), _display_name(player_id))
+	var peer := registry.ban(player_id, _now())
 	var conn_id := _conn_for_player(player_id)
 	if conn_id != 0:
 		_reject_and_drop(conn_id, "kicked")
@@ -109,13 +109,6 @@ func kick(player_id: String) -> bool:
 	print("NET: removed %s (kicked)" % player_id)
 	player_removed.emit(player_id)
 	return true
-
-
-## Имя из узла Player (единственный источник), иначе "" (реестр подставит имя по номеру).
-func _display_name(player_id: String) -> String:
-	var world := get_tree().current_scene.get_node_or_null("NetWorld") if is_inside_tree() else null
-	var p: Node = world._player(player_id) if world != null else null
-	return p.display_name() if p != null else ""
 
 
 func unban(player_id: String) -> bool:
@@ -230,7 +223,8 @@ func _on_hello(conn_id: int, m: Dictionary) -> void:
 		return
 	var token := str(m.get("token", ""))
 	var role := str(m.get("role", ""))
-	var res := registry.admit(token, role, _now())
+	# профиль (ник и внешность из создания персонажа) проверяет и хранит реестр
+	var res := registry.admit(token, role, _now(), m.get("profile", {}))
 	if not res.ok:
 		_reject_and_drop(conn_id, res.reason)
 		return

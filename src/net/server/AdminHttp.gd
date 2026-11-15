@@ -175,7 +175,6 @@ func _stats() -> Dictionary:
 	var now_s := Time.get_ticks_msec() / 1000.0
 	var list: Array = []
 	var banned: Array = []
-	var world := _net_world()
 	var players := 0
 	var held := 0
 	var screens := 0
@@ -188,11 +187,11 @@ func _stats() -> Dictionary:
 				players += 1
 			elif rec.state == "held":
 				held += 1
-			var node: Node = world._player(rec.player_id) if world != null else null
+			# имя и скин — из реестра (проверенный профиль игрока, единственный источник)
 			list.append({
 				"player_id": rec.player_id,
-				"name": node.display_name() if node != null else "Игрок %d" % rec.number,
-				"skin": node.skin_id() if node != null else "",
+				"name": rec.name,
+				"skin": rec.skin,
 				"number": rec.number,
 				"state": rec.state,
 				"rtt_ms": server.rtt_ms(rec.peer_id) if rec.state == "connected" else -1,

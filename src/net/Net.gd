@@ -47,11 +47,21 @@ func _ready() -> void:
 		server = NetServer.new()
 		server.name = "NetServer"
 		add_child(server)
-	else:
-		add_child(ConnectionOverlay.new())
-		client = NetClient.new()
-		client.name = "NetClient"
-		add_child(client)
+	elif is_screen():
+		start_client()
+	# CLIENT: подключение начинается после создания персонажа (CharacterCreator зовёт start_client),
+	# чтобы в hello ушли выбранные ник и внешность
+
+
+## Клиент (CLIENT, SCREEN): начать подключение к серверу. Повторный вызов и вызов в OFFLINE /
+## на сервере ничего не делают.
+func start_client() -> void:
+	if client != null or not is_network() or is_server():
+		return
+	add_child(ConnectionOverlay.new())
+	client = NetClient.new()
+	client.name = "NetClient"
+	add_child(client)
 
 
 func is_network() -> bool:
