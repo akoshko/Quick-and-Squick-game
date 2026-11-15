@@ -89,9 +89,9 @@ func _layout_sizes() -> void:
 	_time_label.add_theme_font_size_override("font_size", int(font * 0.8))
 	_icon.custom_minimum_size = Vector2.ONE * font * 1.3
 	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
-	style.set_content_margin_all(font * 0.4)
-	style.content_margin_left = font * 0.6
-	style.content_margin_right = font * 0.8
+	var step := UiSpacing.step(screen)
+	style.set_content_margin_all(step * 2)
+	_panel.get_child(0).add_theme_constant_override("separation", step)
 	style.set_corner_radius_all(roundi(font * 0.4))
 	_panel.reset_size()
 
@@ -99,7 +99,7 @@ func _layout_sizes() -> void:
 # Положение пересчитываем каждый кадр: размер экрана и кнопок может смениться
 func _process(_delta: float) -> void:
 	var screen := get_viewport().get_visible_rect().size
-	var margin := minf(screen.y, screen.x * 1.45) * 0.03
+	var margin := UiSpacing.step(screen) * 4
 	var left := (screen.x - _panel.size.x) / 2.0
 	var bottom := screen.y
 	var controls := get_tree().get_first_node_in_group("mobile_controls") as MobileControls

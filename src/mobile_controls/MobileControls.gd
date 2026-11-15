@@ -6,7 +6,6 @@ extends CanvasLayer
 ## поэтому Player.gd ничего не нужно знать про телефон.
 
 @export var show_on_desktop := false    # включи, чтобы проверить на компьютере
-@export var margin_ratio := 0.05        # отступ от краёв (доля высоты экрана)
 @export var dpad_button_ratio := 0.14   # размер кнопки крестовины (доля высоты)
 @export var action_button_ratio := 0.2  # размер кнопки действия (доля высоты)
 
@@ -96,7 +95,7 @@ func _make_button(action: String, normal: Texture2D, pressed: Texture2D) -> Touc
 func _layout() -> void:
 	var screen := get_viewport().get_visible_rect().size
 	var control_scale_basis := minf(screen.y, screen.x * 1.2)
-	var margin := control_scale_basis * margin_ratio
+	var margin := UiSpacing.step(screen) * 4
 
 	var dpad_scale := control_scale_basis * dpad_button_ratio / TEX_SIZE
 	var btn := TEX_SIZE * dpad_scale

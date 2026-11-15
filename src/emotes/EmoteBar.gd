@@ -82,11 +82,12 @@ func _make_button(icon: Texture2D, number: String) -> Button:
 func _layout() -> void:
 	var screen := get_viewport().get_visible_rect().size
 	var basis := minf(screen.y, screen.x * 1.45)
-	var margin := basis * 0.03
+	var step := UiSpacing.step(screen)
+	var margin := step * 4
 	# На телефоне кнопки крупнее — под палец; на компьютере совсем небольшие
 	var size := basis * (0.1 if _phone else 0.055)
-	var gap := size * 0.15
-	_menu.add_theme_constant_override("separation", int(gap))
+	var gap := step * 2
+	_menu.add_theme_constant_override("separation", gap)
 	for button in _buttons + ([_toggle] if _toggle else []):
 		button.custom_minimum_size = Vector2.ONE * size
 		button.size = Vector2.ONE * size

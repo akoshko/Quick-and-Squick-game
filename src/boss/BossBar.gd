@@ -16,6 +16,7 @@ var _name: Label
 var _bar: SegmentBar
 var _banner: Label
 var _fade: Tween
+var _quest_panel: PanelContainer
 
 
 ## Полоска из делений, нарисованная кодом
@@ -75,6 +76,11 @@ func _ready() -> void:
 	_set_boss_visible(false)
 	get_viewport().size_changed.connect(_layout)
 	_layout()
+
+
+func avoid_quest_panel(panel: PanelContainer) -> void:
+	_quest_panel = panel
+	panel.resized.connect(_layout, CONNECT_DEFERRED)
 
 
 func show_boss(title: String, max_hp: int) -> void:
@@ -139,10 +145,15 @@ func banner_text() -> String:
 
 # Размеры — от размера экрана: полоса по центру сверху
 func _layout() -> void:
+	if not is_inside_tree():
+		return
 	var screen := get_viewport().get_visible_rect().size
 	var font := maxi(10, int(screen.y * 0.03))
 	var bar_size := Vector2(screen.x * 0.42, maxf(6.0, screen.y * 0.016))
-	var top := screen.y * 0.04
+	var step := UiSpacing.step(screen)
+	var top := float(step * 4)
+	if screen.y > screen.x and not Net.is_screen() and is_instance_valid(_quest_panel):
+		top = _quest_panel.get_rect().end.y + step * 2
 
 	_name.add_theme_font_size_override("font_size", font)
 	_name.add_theme_constant_override("outline_size", maxi(2, int(font / 6.0)))
@@ -150,11 +161,11 @@ func _layout() -> void:
 	_name.position = Vector2((screen.x - bar_size.x) / 2.0, top)
 
 	_bar.size = bar_size
-	_bar.position = Vector2((screen.x - bar_size.x) / 2.0, top + _name.size.y + 4.0)
+	_bar.position = Vector2((screen.x - bar_size.x) / 2.0, top + _name.size.y + step)
 
 	var banner_font := maxi(16, int(minf(screen.y * 0.075, screen.x * 0.09)))
 	_banner.add_theme_font_size_override("font_size", banner_font)
 	_banner.add_theme_constant_override("outline_size", maxi(3, int(banner_font / 8.0)))
-	_banner.size = Vector2(screen.x * 0.94, banner_font * 3.0)
-	_banner.position = Vector2(screen.x * 0.03, (screen.y - _banner.size.y) / 2.0)
+	_banner.size = Vector2(screen.x - step * 8, banner_font * 3.0)
+	_banner.position = Vector2(step * 4, (screen.y - _banner.size.y) / 2.0)
 	health_layout_changed.emit()

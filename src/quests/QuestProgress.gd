@@ -2,7 +2,6 @@ class_name QuestProgress
 extends CanvasLayer
 
 @export var font_ratio := 0.032
-@export var margin_ratio := 0.03
 
 var _panel: PanelContainer
 var _header: Label
@@ -15,6 +14,9 @@ var _open_button: Button
 func _ready() -> void:
 	layer = 5
 	_build()
+	var boss_bar := get_tree().get_first_node_in_group("boss_bar") as BossBar
+	if boss_bar:
+		boss_bar.avoid_quest_panel(_panel)
 	Quests.changed.connect(_refresh)
 	Quests.selected_quest_changed.connect(_refresh)
 	Quests.quest_completed.connect(_animate_completion)
@@ -64,14 +66,16 @@ func _layout() -> void:
 	var screen := get_viewport().get_visible_rect().size
 	var layout_height := minf(screen.y, screen.x * 1.45)
 	var font := maxi(8, int(layout_height * font_ratio))
-	var margin := layout_height * margin_ratio
-	var padding := font * 0.6
+	var step := UiSpacing.step(screen)
+	var margin := step * 4
+	var padding := step * 2
 	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
 	style.set_content_margin_all(padding)
 	style.set_corner_radius_all(roundi(font * 0.35))
 
 	var box := _panel.get_child(0) as VBoxContainer
-	box.add_theme_constant_override("separation", roundi(font * 0.22))
+	box.add_theme_constant_override("separation", step)
+	_status.get_parent().add_theme_constant_override("separation", step)
 	_title.custom_minimum_size.x = maxf(0, minf(font * 12.0, screen.x * 0.53) - padding * 2.0)
 	_header.add_theme_font_size_override("font_size", roundi(font * 0.9))
 	_open_button.custom_minimum_size.y = font * 2.4

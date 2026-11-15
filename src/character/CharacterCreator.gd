@@ -193,7 +193,11 @@ func _layout() -> void:
 	var font := maxi(10, int(unit * 0.032))
 	var width := minf(screen.x * 0.9, font * 22.0)
 
-	_box.add_theme_constant_override("separation", int(font * 0.45))
+	var gap := UiSpacing.step(screen) * 2
+	_box.add_theme_constant_override("separation", gap)
+	for child in _box.get_children():
+		if child is HBoxContainer:
+			child.add_theme_constant_override("separation", gap)
 	_title.add_theme_font_size_override("font_size", int(font * 1.4))
 	_preview.custom_minimum_size = Vector2.ONE * unit * 0.22
 	_nickname.add_theme_font_size_override("font_size", int(font * 1.25))

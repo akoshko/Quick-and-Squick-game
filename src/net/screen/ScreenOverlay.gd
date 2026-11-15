@@ -38,7 +38,6 @@ func _ready() -> void:
 
 	_box = VBoxContainer.new()
 	_box.alignment = BoxContainer.ALIGNMENT_CENTER
-	_box.add_theme_constant_override("separation", 12)
 	_panel.add_child(_box)
 
 	_qr_rect = TextureRect.new()
@@ -91,7 +90,9 @@ func _layout() -> void:
 	_panel.offset_right = screen.x
 	_panel.offset_top = 0.0
 	_panel.offset_bottom = 0.0
-	var pad := roundf(minf(col_w, screen.y) * 0.06)
+	var step := UiSpacing.step(screen)
+	var pad := step * 3
+	_box.add_theme_constant_override("separation", step * 2)
 	_box.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_box.offset_left = pad
 	_box.offset_right = -pad

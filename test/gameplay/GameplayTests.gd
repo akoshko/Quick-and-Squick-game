@@ -116,6 +116,16 @@ func _test_journal_profile() -> void:
 	var tabs := _journal._tabs
 	var profile := tabs.get_node("Профиль") as ScrollContainer
 	await get_tree().process_frame
+	var step := UiSpacing.step(get_viewport().get_visible_rect().size)
+	var achievements := _journal._achievement_cards
+	_check(_journal._list.get_theme_stylebox("panel").get_margin(SIDE_TOP) == step * 2
+		and achievements.get_parent().get_theme_constant("margin_top") == step * 2
+		and _journal._profile_layout.get_parent().get_theme_constant("margin_top") == step * 2
+		and achievements.get_theme_constant("separation") == step * 2
+		and _journal._accessory_grid.get_theme_constant("h_separation") == step * 2,
+		"Journal tabs use the same adaptive inset and card and slot gaps")
+	_check(_progress._panel.position == Vector2.ONE * step * 4,
+		"The active quest uses the shared viewport edge margin")
 	var profile_rect := tabs.get_tab_bar().get_tab_rect(tabs.get_tab_idx_from_control(profile))
 	_check(profile_rect.has_area() and profile_rect.end.x <= tabs.size.x,
 		"The profile tab is visible alongside the existing journal tabs in portrait mode")
@@ -626,6 +636,11 @@ func _test_boss() -> void:
 		and second.get_node("Row/Labels/Description").text == "Второе"
 		and first.get_global_rect().end.y <= second.get_global_rect().position.y,
 		"Two rapid achievement notifications stack in arrival order")
+	_check(director._bar._name.position.y >= _progress._panel.get_rect().end.y,
+		"The portrait boss bar starts below the active quest panel")
+	var emote_bar := get_tree().get_first_node_in_group("emote_bar") as EmoteBar
+	_check(emote_bar != null and first.get_global_rect().position.y >= emote_bar.top_right_bottom(),
+		"Portrait notifications leave the emote button clear")
 	for card: Control in popups.get_children():
 		var rect := card.get_global_rect()
 		_check(rect.position.y >= director._bar.health_bottom()

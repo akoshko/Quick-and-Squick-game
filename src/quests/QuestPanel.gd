@@ -49,7 +49,7 @@ func _ready() -> void:
 		_boss_bar.health_layout_changed.connect(_layout_achievement_popups)
 	Quests.changed.connect(_refresh)
 	Quests.selected_quest_changed.connect(_refresh)
-	get_viewport().size_changed.connect(_layout)
+	get_viewport().size_changed.connect(_layout, CONNECT_DEFERRED)
 	_refresh()
 
 
@@ -100,12 +100,11 @@ func _build() -> void:
 	box.add_child(_tabs)
 	for style_name in [&"tab_selected", &"tab_unselected", &"tab_hovered", &"tab_disabled"]:
 		var tab_style := _tabs.get_theme_stylebox(style_name).duplicate() as StyleBox
-		tab_style.content_margin_left = 6
-		tab_style.content_margin_right = 6
 		_tabs.add_theme_stylebox_override(style_name, tab_style)
 
 	_list = Tree.new()
 	_list.name = "Задания"
+	_list.add_theme_stylebox_override("panel", _list.get_theme_stylebox("panel").duplicate())
 	_list.hide_root = true
 	_list.item_selected.connect(_select_quest)
 	_tabs.add_child(_list)
@@ -192,8 +191,6 @@ func _build_accessory_grid(inventory: VBoxContainer, title: String, ids: Array) 
 		content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		slot.add_child(content)
 		content.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-		content.offset_left = 3
-		content.offset_right = -3
 
 		var icon := TextureRect.new()
 		icon.name = "Icon"
@@ -243,7 +240,10 @@ func _build_achievements() -> void:
 
 	_achievement_cards = VBoxContainer.new()
 	_achievement_cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
-	scroll.add_child(_achievement_cards)
+	var inset := MarginContainer.new()
+	inset.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	scroll.add_child(inset)
+	inset.add_child(_achievement_cards)
 
 	for id: StringName in ACHIEVEMENTS:
 		var card := _make_achievement_card()
@@ -349,6 +349,8 @@ func _set_notifications_visible(show_notifications: bool) -> void:
 
 
 func _update_notification_timers() -> void:
+	if not is_inside_tree():
+		return
 	var bottom := get_viewport().get_visible_rect().end.y
 	var mobile := get_tree().get_first_node_in_group("mobile_controls") as MobileControls
 	if mobile != null:
@@ -371,22 +373,27 @@ func _update_notification_timers() -> void:
 
 
 func _layout() -> void:
+	if not is_inside_tree():
+		return
 	var size := get_viewport().get_visible_rect().size
 	var font := maxi(8, int(minf(size.y, size.x * 1.45) * font_ratio))
+	var step := UiSpacing.step(size)
+	var padding := step * 2
 	var icon_scale := clampf(size.y / maxf(size.x, 1.0), 1.0, 1.5)
 	var style := _panel.get_theme_stylebox("panel") as StyleBoxFlat
-	style.set_content_margin_all(font * 0.6)
+	style.set_content_margin_all(step * 3)
 	style.set_corner_radius_all(roundi(font * 0.5))
 
 	var box := _panel.get_child(0) as VBoxContainer
-	box.add_theme_constant_override("separation", roundi(font * 0.5))
+	box.add_theme_constant_override("separation", padding)
 	var row_height := font * 2.4
 	_list.add_theme_font_size_override("font_size", font)
 	_resize_expanders(roundi(font * 0.85 * icon_scale))
 	var check_scale := clampf(size.y / maxf(size.x, 1.0), 1.0, 1.8)
 	_list.add_theme_constant_override("icon_max_width", roundi(font * 1.4 * check_scale))
-	_list.add_theme_constant_override("item_margin", roundi(font))
-	_list.add_theme_constant_override("v_separation", roundi(font * 0.4))
+	_list.add_theme_constant_override("item_margin", step * 4)
+	_list.add_theme_constant_override("v_separation", padding)
+	_list.get_theme_stylebox("panel").set_content_margin_all(padding)
 	_panel.custom_minimum_size = Vector2(size.x * 0.88, size.y * 0.84)
 	_close_button.custom_minimum_size.y = row_height
 	_stuck_button.custom_minimum_size.y = row_height
@@ -394,20 +401,22 @@ func _layout() -> void:
 	_heading.add_theme_font_size_override("font_size", int(font * 1.1))
 	_close_button.add_theme_font_size_override("font_size", font)
 	_tabs.add_theme_font_size_override("font_size", font)
-	_heading.get_parent().add_theme_constant_override("separation", roundi(font * 0.4))
+	for style_name in [&"tab_selected", &"tab_unselected", &"tab_hovered", &"tab_disabled"]:
+		var tab_style := _tabs.get_theme_stylebox(style_name)
+		tab_style.content_margin_left = step
+		tab_style.content_margin_right = step
+	_heading.get_parent().add_theme_constant_override("separation", padding)
 	_profile_layout.vertical = size.y > size.x
-	_profile_layout.add_theme_constant_override("separation", font)
-	var inset := _profile_layout.get_parent() as MarginContainer
-	var padding := roundi(font * 0.5)
-	for margin in [&"margin_left", &"margin_top", &"margin_right", &"margin_bottom"]:
-		inset.add_theme_constant_override(margin, padding)
+	_profile_layout.add_theme_constant_override("separation", step * 4)
+	UiSpacing.inset(_profile_layout.get_parent(), padding)
+	UiSpacing.inset(_achievement_cards.get_parent(), padding)
 	var inventory := _profile_layout.get_child(0) as VBoxContainer
-	inventory.add_theme_constant_override("separation", roundi(font * 0.8))
-	var slot_side := roundi(font * 5.25)
-	var slot_gap := roundi(font * 0.4)
+	inventory.add_theme_constant_override("separation", step * 4)
+	var slot_side := roundi(font * 5.0)
+	var slot_gap := padding
 	var inventory_width := _panel.custom_minimum_size.x - style.get_minimum_size().x - padding * 2
 	if not _profile_layout.vertical:
-		inventory_width = (inventory_width - font) * 0.5
+		inventory_width = (inventory_width - step * 4) * 0.5
 	for grid in [_accessory_grid, _nickname_color_grid]:
 		grid.get_parent().add_theme_constant_override("separation", slot_gap)
 		grid.add_theme_constant_override("h_separation", slot_gap)
@@ -415,7 +424,8 @@ func _layout() -> void:
 		grid.columns = clampi(floori((inventory_width + slot_gap) / (slot_side + slot_gap)), 1, grid.get_child_count())
 	var preview := _profile_layout.get_child(1) as PanelContainer
 	var preview_style := preview.get_theme_stylebox("panel") as StyleBoxFlat
-	preview_style.set_content_margin_all(roundi(font * 0.7))
+	preview_style.set_content_margin_all(step * 3)
+	preview.get_child(0).add_theme_constant_override("separation", padding)
 	_profile_preview.custom_minimum_size.y = font * 8
 	for label in _profile_layout.find_children("*", "Label", true, false):
 		label.add_theme_font_size_override("font_size", font)
@@ -423,26 +433,30 @@ func _layout() -> void:
 	for slot in _accessory_slots.values():
 		slot.custom_minimum_size = Vector2(slot_side, slot_side)
 		var content := slot.get_child(0) as VBoxContainer
+		content.offset_left = step
+		content.offset_right = -step
+		content.add_theme_constant_override("separation", step)
 		content.get_node("Icon").custom_minimum_size.y = roundi(font * 1.8)
 		content.get_node("Title").add_theme_font_size_override("font_size", slot_font)
 
-	_achievement_cards.add_theme_constant_override("separation", roundi(font * 0.35))
+	_achievement_cards.add_theme_constant_override("separation", padding)
 	for card in _achievement_cards.get_children():
-		_layout_achievement_card(card, font)
+		_layout_achievement_card(card, font, step)
 	_layout_achievement_popups()
 
 
 func _layout_achievement_popups() -> void:
 	var size := get_viewport().get_visible_rect().size
 	var font := maxi(8, int(minf(size.y, size.x * 1.45) * font_ratio))
-	_achievement_popups.add_theme_constant_override("separation", roundi(font * 0.35))
+	var step := UiSpacing.step(size)
+	_achievement_popups.add_theme_constant_override("separation", step * 2)
 	var portrait := size.y > size.x
 	var card_font := maxi(8, roundi(font * 0.78)) if portrait else font
 	for card in _achievement_popups.get_children():
-		_layout_achievement_card(card, card_font)
+		_layout_achievement_card(card, card_font, step)
 		if portrait:
 			card.get_node("Row/Medal").custom_minimum_size.x = roundi(font * 1.5)
-	var margin := float(font)
+	var margin := float(step * 4)
 	var width := minf(font * 16.0, size.x * 0.35)
 	var top := margin
 	if is_instance_valid(_boss_bar):
@@ -458,17 +472,17 @@ func _layout_achievement_popups() -> void:
 	_update_notification_timers.call_deferred()
 
 
-func _layout_achievement_card(card: PanelContainer, font: int) -> void:
+func _layout_achievement_card(card: PanelContainer, font: int, step: int) -> void:
 	card.custom_minimum_size.y = roundi(font * 4.8)
 	var style := card.get_theme_stylebox("panel") as StyleBoxFlat
-	style.set_content_margin_all(roundi(font * 0.55))
+	style.set_content_margin_all(step * 2)
 	style.set_corner_radius_all(roundi(font * 0.35))
 	var row := card.get_node("Row") as HBoxContainer
-	row.add_theme_constant_override("separation", roundi(font * 0.55))
+	row.add_theme_constant_override("separation", step * 2)
 	var medal := row.get_node("Medal") as TextureRect
 	medal.custom_minimum_size.x = maxi(16, roundi(font * 2.5 / 16.0) * 16)
 	var labels := row.get_node("Labels") as VBoxContainer
-	labels.add_theme_constant_override("separation", roundi(font * 0.15))
+	labels.add_theme_constant_override("separation", step)
 	labels.get_node("Title").add_theme_font_size_override("font_size", font)
 	labels.get_node("Description").add_theme_font_size_override("font_size", roundi(font * 0.85))
 

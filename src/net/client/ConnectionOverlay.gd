@@ -73,7 +73,8 @@ func _layout() -> void:
 	var h := minf(screen.y, screen.x * 1.45)
 	var font := maxi(12, int(h * 0.05))
 	var badge_font := maxi(10, int(h * 0.035))
-	var margin := roundf(h * 0.02)
+	var step := UiSpacing.step(screen)
+	var margin := step * 4
 	_dim_label.add_theme_font_size_override("font_size", font)
 	_reject_label.add_theme_font_size_override("font_size", font)
 	_retry.add_theme_font_size_override("font_size", font)
@@ -81,7 +82,7 @@ func _layout() -> void:
 	_retry.offset_top = font
 	_retry.offset_bottom = font * 3
 	_badge_label.add_theme_font_size_override("font_size", badge_font)
-	_badge_style.set_content_margin_all(roundf(badge_font * 0.5))
+	_badge_style.set_content_margin_all(step * 2)
 	_badge_style.set_corner_radius_all(roundi(badge_font * 0.35))
 	_badge.offset_left = -margin
 	_badge.offset_right = -margin
