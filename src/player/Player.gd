@@ -24,6 +24,8 @@ const FACING_BONUS := 16.0     # предмет перед глазами «бл
 const PUSH_ALIGN := 20.0       # мешок толкаем, только если смещены вбок не больше чем на столько
 const NAMEPLATE_FONT_SIZE := 8  # ник над головой (в пикселях мира)
 const NAMEPLATE_Y := -17.0      # нижний край ника — чуть выше макушки
+const ZZ_FONT_SIZE := 9
+const ZZ_COLOR := Color("#9fd8ff")
 const EMOTE_Y := -28.0          # кончик облачка эмоции — над ником
 const EMOTE_PITCH: Array[float] = [1.0, 1.25, 1.45, 0.85]   # «голос» эмоции: у каждой свой тон
 
@@ -97,6 +99,7 @@ var _label_base: Vector2
 
 var _hint: InteractHint   # подсказка «нажми E» над ближайшим предметом (только у своего)
 var _nameplate: Label     # ник над головой
+var _effect: Label        # награда-эффект над головой («Zz»)
 var _emote_bubble: EmoteBubble   # облачко эмоции (пока живо — новую не показать)
 var _emote := -1                 # какая эмоция сейчас над головой
 
@@ -163,7 +166,8 @@ func _ready() -> void:
 
 func _refresh_local_accessory(_id: String) -> void:
 	_sprite.texture = PlayerProfile.texture()
-	_nameplate.add_theme_color_override("font_color", CharacterLook.nickname_tint(PlayerProfile.nickname_color))
+	NicknameStyle.apply(_nameplate, PlayerProfile.nickname_color)
+	_show_effect(PlayerProfile.accessory)
 
 
 ## Применить внешность и ник из PlayerProfile.to_dict().
@@ -171,7 +175,45 @@ func set_appearance(data: Dictionary) -> void:
 	var clean := CharacterLook.sanitize(data)
 	_sprite.texture = CharacterLook.build_from(clean)
 	_set_nameplate(clean.nickname)
-	_nameplate.add_theme_color_override("font_color", CharacterLook.nickname_tint(data.get("nickname_color")))
+	NicknameStyle.apply(_nameplate, data.get("nickname_color"))
+	_show_effect(clean.accessory)
+
+
+# Награда-эффект над головой (не рисуется на спрайте): «Zz» за победу над зомби —
+# жирные буквы, покачиваются и мерцают над ником
+func _show_effect(accessory_id: String) -> void:
+	var wanted := accessory_id == "zz"
+	if not wanted:
+		if is_instance_valid(_effect):
+			_effect.queue_free()
+		_effect = null
+		return
+	if is_instance_valid(_effect):
+		return
+	_effect = Label.new()
+	_effect.text = "Zz"
+	_effect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_effect.add_theme_font_size_override("font_size", ZZ_FONT_SIZE)
+	_effect.add_theme_color_override("font_color", ZZ_COLOR)
+	# «Жирный шрифт»: толстая обводка того же цвета утолщает буквы, тёмная тень — контур
+	_effect.add_theme_color_override("font_outline_color", ZZ_COLOR)
+	_effect.add_theme_constant_override("outline_size", 2)
+	_effect.add_theme_color_override("font_shadow_color", Color(0.08, 0.08, 0.12))
+	_effect.add_theme_constant_override("shadow_offset_x", 1)
+	_effect.add_theme_constant_override("shadow_offset_y", 1)
+	_effect.z_index = 50
+	add_child(_effect)
+	_effect.reset_size()
+	# Над подписью: своя (_nameplate) или сетевая (_label)
+	var above: Control = _nameplate if is_instance_valid(_nameplate) and _nameplate.visible else _label
+	var top := above.position.y if above else NAMEPLATE_Y - 10.0
+	var base := Vector2(-_effect.size.x * 0.3, top - _effect.size.y + 2.0)
+	_effect.position = base
+	var float_up := _effect.create_tween().set_loops().set_trans(Tween.TRANS_SINE)
+	float_up.tween_property(_effect, "position", base + Vector2(3, -3), 0.9)
+	float_up.parallel().tween_property(_effect, "modulate:a", 0.55, 0.9)
+	float_up.tween_property(_effect, "position", base, 0.9)
+	float_up.parallel().tween_property(_effect, "modulate:a", 1.0, 0.9)
 
 
 ## Для сетевого игрока: плавно перейти в точку (пришедшую с сервера).
@@ -688,6 +730,7 @@ func display_name() -> String:
 func _apply_profile() -> void:
 	if _sprite != null and not profile.is_empty() and not Net.is_server():
 		_sprite.texture = CharacterLook.build_from(profile)
+		_show_effect(CharacterLook.clean_accessory(profile.get("accessory")))
 	_update_label()
 
 
@@ -696,4 +739,4 @@ func _update_label() -> void:
 		return
 	_label.visible = player_number > 0
 	_label.text = display_name()
-	_label.add_theme_color_override("font_color", CharacterLook.nickname_tint(profile.get("nickname_color")))
+	NicknameStyle.apply(_label, profile.get("nickname_color"))

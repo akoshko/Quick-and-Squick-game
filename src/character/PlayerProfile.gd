@@ -10,8 +10,12 @@ extends Node
 
 signal changed
 signal accessory_changed(id: String)
+## Изменилось, что у игрока «новое»: непросмотренные награды и достижения
+signal news_changed
 
 const SAVE_PATH := "user://profile.cfg"
+## Что игрок уже видел из наград — отдельно от внешности, сохраняется сразу
+const REWARDS_PATH := "user://rewards.cfg"
 
 var title_first := ""
 var title_second := ""
@@ -23,12 +27,17 @@ var hair_style := "short"
 var hair_color := "brown"
 var accessory := CharacterLook.STARTER_ACCESSORY
 var nickname_color := CharacterLook.DEFAULT_NICKNAME_COLOR
+var _seen_rewards: Array[String] = []             # предметы и цвета ника, на которые уже нажимал
+var _seen_achievements: Array[StringName] = []    # достижения, которые уже видел в профиле
 
 
 func _ready() -> void:
 	GameManager.reward_achievements_synced.connect(_refresh_reward_choices)
+	GameManager.achievement_unlocked.connect(func(_id: StringName) -> void: news_changed.emit())
+	GameManager.achievements_reset.connect(news_changed.emit)
 	randomize_nickname()   # если сохранённого профиля нет — случайный ник
 	load_profile()
+	_load_seen()
 
 
 ## Готовая текстура персонажа для текущей внешности
@@ -54,9 +63,65 @@ func equip_accessory(id: String) -> void:
 
 
 func can_equip_accessory(id: String) -> bool:
-	var option := CharacterLook.accessory_option(id)
-	var achievement: StringName = option.get("achievement", &"")
-	return not option.is_empty() and (achievement == &"" or GameManager.has_achievement(achievement))
+	return CharacterLook.is_reward_available(id, GameManager.has_achievement)
+
+
+## Новая награда: открыта, но игрок на неё ещё не нажимал (на ней — «Новое»)
+func is_new_reward(id: String) -> bool:
+	return CharacterLook.accessory_option(id).get("achievement", &"") != &"" 			and can_equip_accessory(id) and not _seen_rewards.has(id)
+
+
+## Есть ли в профиле что-то новое (получено достижение, а профиль с тех пор не открывали)
+func has_profile_news() -> bool:
+	for id: StringName in Achievements.LIST:
+		if GameManager.has_achievement(id) and not _seen_achievements.has(id):
+			return true
+	return false
+
+
+## Есть ли вообще что-то новое (для значка «!» на кнопке «Журнал»)
+func has_news() -> bool:
+	if has_profile_news():
+		return true
+	for id in CharacterLook.reward_ids():
+		if is_new_reward(id):
+			return true
+	return false
+
+
+## Игрок нажал на новую награду — «Новое» с неё снимается
+func mark_reward_seen(id: String) -> void:
+	if _seen_rewards.has(id):
+		return
+	_seen_rewards.append(id)
+	_save_seen()
+	news_changed.emit()
+
+
+## Игрок открыл профиль — все полученные достижения больше не «новые»
+func mark_profile_seen() -> void:
+	if not has_profile_news():
+		return
+	for id: StringName in Achievements.LIST:
+		if GameManager.has_achievement(id) and not _seen_achievements.has(id):
+			_seen_achievements.append(id)
+	_save_seen()
+	news_changed.emit()
+
+
+func _save_seen() -> void:
+	var config := ConfigFile.new()
+	config.set_value("seen", "rewards", _seen_rewards)
+	config.set_value("seen", "achievements", _seen_achievements)
+	config.save(REWARDS_PATH)
+
+
+func _load_seen() -> void:
+	var config := ConfigFile.new()
+	if config.load(REWARDS_PATH) != OK:
+		return
+	_seen_rewards.assign(config.get_value("seen", "rewards", []))
+	_seen_achievements.assign(config.get_value("seen", "achievements", []))
 
 
 func _refresh_reward_choices() -> void:

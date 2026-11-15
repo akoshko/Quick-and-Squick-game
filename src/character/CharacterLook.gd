@@ -13,18 +13,54 @@ class_name CharacterLook
 
 const DIR := "res://src/character/"
 const NO_ACCESSORY := "none"
-const STARTER_ACCESSORY := "participant_badge"
+const STARTER_ACCESSORY := NO_ACCESSORY
+## Награда за ВСЕ достижения (Achievements.LIST), а не за одно
+const ALL_ACHIEVEMENTS := &"all"
+## Предметы: надевается один. "effect" — не рисуется на спрайте, а показывается
+## над головой (Player); остальные — пиксель-арт из ACCESSORY_ART поверх персонажа.
 const ACCESSORIES := {
 	NO_ACCESSORY: {"title": "Нет аксессуара"},
-	STARTER_ACCESSORY: {"title": "Бейдж участника"},
-	"first_steps": {"title": "Значок новичка", "achievement": &"first_steps"},
-	"apple": {"title": "Яблоко", "achievement": &"steve_jobs"},
+	"first_steps": {"title": "Значок хакатона", "achievement": &"first_steps"},
+	"apple": {"title": "Яблоко во рту", "achievement": &"steve_jobs"},
+	"cookie": {"title": "Печенька во рту", "achievement": &"clean_cookies"},
+	"detective": {"title": "Очки детектива", "achievement": &"hide_and_seek"},
+	"zz": {"title": "Zz над головой", "achievement": &"zombie_apocalypse", "effect": true},
+	"cat_hat": {"title": "Шапочка-котик", "achievement": ALL_ACHIEVEMENTS},
 }
 const DEFAULT_NICKNAME_COLOR := "white"
+## Цвет ника. "stars" — звёздочки по бокам, "gradient" — переливающийся
+## градиент из трёх цветов (рисует NicknameStyle)
 const NICKNAME_COLORS := {
 	DEFAULT_NICKNAME_COLOR: {"title": "Белый", "tint": Color.WHITE},
-	"orange": {"title": "Оранжевый", "tint": Color("#ff9d43"), "achievement": &"first_steps"},
-	"blue": {"title": "Синий", "tint": Color("#75aaff"), "achievement": &"boss_victory"},
+	"blue": {"title": "Синий со звёздами", "tint": Color("#75aaff"), "stars": true, "achievement": &"boss_victory"},
+	"green": {"title": "Зелёный градиент", "tint": Color("#5be37d"),
+			"gradient": [Color("#c4ff6b"), Color("#35d67c"), Color("#109e5c")], "achievement": &"zombie_apocalypse"},
+	"mascot": {"title": "Котик-градиент", "tint": Color("#ff6a3d"),
+			"gradient": [Color("#e8423a"), Color("#ff9d43"), Color("#ffd75e")], "achievement": ALL_ACHIEVEMENTS},
+}
+## Пиксель-арт предметов: где лежит на спрайте 32×32 (левый верхний угол) и
+## картинка по строкам (буквы — цвета из ART_PALETTE, точка — прозрачно)
+const ACCESSORY_ART := {
+	"first_steps": {"at": Vector2i(14, 17), "rows": [   # значок TulaHack: белый, с красным котиком
+		".KKKKK.", "KWWWWWK", "KWRWRWK", "KWRRRWK", "KWRRRWK", "KWWWWWK", ".KKKKK."]},
+	"cat_hat": {"at": Vector2i(8, 0), "rows": [         # шапочка-маскот: ушки и белые ^ ^
+		".KK..........KK.", "KRRK........KRRK", "KRRRK......KRRRK", "KRRRRKKKKKKRRRRK",
+		"KRRRRRRRRRRRRRRK", "KRRWRRRRRRRRWRRK", "KRWRWRRRRRRWRWRK", "KrrrrrrrrrrrrrrK",
+		".KKKKKKKKKKKKKK."]},
+	"detective": {"at": Vector2i(10, 8), "rows": [      # круглые очки
+		".FFF...FFF.", "FLLLF.FLLLF", "FLLLFFFLLLF", ".FFF...FFF."]},
+	"apple": {"at": Vector2i(10, 10), "rows": [          # яблоко во рту
+		"...gG", ".KAKG", "KAAAK", "KAAaK", ".KaK."]},
+	"cookie": {"at": Vector2i(10, 10), "rows": [         # печенька во рту
+		".ccc.", "cCDCc", "cCCCc", "cDCDc", ".ccc."]},
+	"zz": {"at": Vector2i.ZERO, "rows": [                # значок для инвентаря (сама Zz — над головой)
+		"ZZZZ...", "...Z...", "..Z.zzz", ".Z....z", "ZZZZ.z.", ".....zz", "....zzz"]},
+}
+const ART_PALETTE := {
+	"K": Color("#16161b"), "W": Color("#fafafa"), "R": Color("#d6302a"), "r": Color("#a01e1c"),
+	"F": Color("#5c3c28"), "L": Color(0.75, 0.88, 1.0, 0.6), "A": Color("#f26368"), "a": Color("#be323c"),
+	"G": Color("#78c85a"), "g": Color("#46963c"), "C": Color("#ecbe78"), "c": Color("#965f2d"),
+	"D": Color("#502d19"), "Z": Color("#9fd8ff"), "z": Color("#5fa8e6"),
 }
 ## Особые скины создателей игры: готовые спрайты 32×32 вместо собранных слоёв.
 ## Выдаёт только сервер (админка, по токену сессии); из профиля игрока не принимаются.
@@ -115,9 +151,9 @@ static func build(hoodie_id: String, style_id: String, color_id: String, accesso
 		_recolor(hair_image, HAIR_KEY, hair.color, hair.get("streak", null), streak_cols)
 		_overlay(image, hair_image)
 
-	if accessory_id != NO_ACCESSORY and ACCESSORIES.has(accessory_id):
-		var badge := accessory_icon(accessory_id).get_image()
-		image.blend_rect(badge, Rect2i(Vector2i.ZERO, badge.get_size()), Vector2i(15, 24 - badge.get_height()))
+	if ACCESSORY_ART.has(accessory_id) and not ACCESSORIES.get(accessory_id, {}).get("effect", false):
+		var art := accessory_icon(accessory_id).get_image()
+		image.blend_rect(art, Rect2i(Vector2i.ZERO, art.get_size()), ACCESSORY_ART[accessory_id].at)
 
 	var texture := ImageTexture.create_from_image(image)
 	_cache[key] = texture
@@ -176,35 +212,77 @@ static func accessory_icon(id: String) -> Texture2D:
 	if _accessory_icons.has(id):
 		return _accessory_icons[id]
 	var icon: Image
-	match id:
-		NO_ACCESSORY:
-			icon = Image.create_empty(7, 7, false, Image.FORMAT_RGBA8)
-			for pixel in range(1, 6):
-				icon.set_pixel(pixel, pixel, Color("#a0a6b5"))
-				icon.set_pixel(pixel, 6 - pixel, Color("#a0a6b5"))
-		STARTER_ACCESSORY:
-			icon = Image.create_empty(5, 4, false, Image.FORMAT_RGBA8)
-			icon.fill(Color("#252936"))
-			icon.fill_rect(Rect2i(1, 1, 3, 2), Color("#c4e2f0"))
-		"first_steps":
-			icon = Image.create_empty(4, 4, false, Image.FORMAT_RGBA8)
-			icon.fill(Color("#203c33"))
-			icon.fill_rect(Rect2i(1, 1, 2, 2), Color("#a9df7a"))
-		"apple":
-			var pixels := [
-				"...++", "...+.", "##.##", "..###", ".####", ".#.#.",
-			]
-			icon = Image.create_empty(pixels[0].length(), pixels.size(), false, Image.FORMAT_RGBA8)
-			for y in pixels.size():
-				for x in pixels[y].length():
-					match pixels[y][x]:
-						"#": icon.set_pixel(x, y, Color("#f26368"))
-						"+": icon.set_pixel(x, y, Color("#a9df7a"))
-		_:
-			icon = Image.create_empty(4, 4, false, Image.FORMAT_RGBA8)
-			icon.fill(nickname_tint(id))
+	if ACCESSORY_ART.has(id):
+		var rows: Array = ACCESSORY_ART[id].rows
+		icon = Image.create_empty(rows[0].length(), rows.size(), false, Image.FORMAT_RGBA8)
+		for y in rows.size():
+			for x in rows[y].length():
+				if ART_PALETTE.has(rows[y][x]):
+					icon.set_pixel(x, y, ART_PALETTE[rows[y][x]])
+	elif id == NO_ACCESSORY:
+		icon = Image.create_empty(7, 7, false, Image.FORMAT_RGBA8)
+		for pixel in range(1, 6):
+			icon.set_pixel(pixel, pixel, Color("#a0a6b5"))
+			icon.set_pixel(pixel, 6 - pixel, Color("#a0a6b5"))
+	else:
+		icon = _nickname_icon(id)
 	_accessory_icons[id] = ImageTexture.create_from_image(icon)
 	return _accessory_icons[id]
+
+
+# Значок цвета ника: квадрат цвета, градиент или синий со звёздочкой
+static func _nickname_icon(id: String) -> Image:
+	var style: Dictionary = NICKNAME_COLORS[clean_nickname_color(id)]
+	var icon := Image.create_empty(8, 8, false, Image.FORMAT_RGBA8)
+	var gradient: Array = style.get("gradient", [])
+	for x in 8:
+		var color: Color = style.tint
+		if not gradient.is_empty():
+			var t := x / 7.0
+			color = gradient[0].lerp(gradient[1], t * 2.0) if t < 0.5 else gradient[1].lerp(gradient[2], t * 2.0 - 1.0)
+		for y in 8:
+			icon.set_pixel(x, y, color)
+	if style.get("stars", false):
+		for point: Vector2i in [Vector2i(3, 1), Vector2i(3, 2), Vector2i(1, 3), Vector2i(2, 3),
+				Vector2i(3, 3), Vector2i(4, 3), Vector2i(5, 3), Vector2i(3, 4), Vector2i(3, 5)]:
+			icon.set_pixel(point.x, point.y, Color("#fff4b0"))
+	return icon
+
+
+## Можно ли надеть награду: нет требования, есть нужное достижение или
+## (для ALL_ACHIEVEMENTS) все достижения. earned(id) -> bool — есть ли достижение.
+## Одна проверка для клиента (PlayerProfile) и сервера (PlayerRegistry).
+static func is_reward_available(id: String, earned: Callable) -> bool:
+	var option := accessory_option(id)
+	if option.is_empty():
+		return false
+	var requirement: StringName = option.get("achievement", &"")
+	if requirement == &"":
+		return true
+	if requirement == ALL_ACHIEVEMENTS:
+		return Achievements.LIST.keys().all(func(achievement: StringName) -> bool: return earned.call(achievement))
+	return earned.call(requirement)
+
+
+## Все награды (предметы и цвета ника), которые требуют достижения — кроме тех, что даются всем
+static func reward_ids() -> Array[String]:
+	var ids: Array[String] = []
+	for catalog: Dictionary in [ACCESSORIES, NICKNAME_COLORS]:
+		for id: String in catalog:
+			if catalog[id].get("achievement", &"") != &"":
+				ids.append(id)
+	return ids
+
+
+## Награды, которые открылись, когда получено достижение achievement_id:
+## привязанные к нему и «за все достижения», если теперь собраны все
+static func rewards_unlocked_by(achievement_id: StringName, earned: Callable) -> Array[String]:
+	var ids: Array[String] = []
+	for id in reward_ids():
+		var requirement: StringName = accessory_option(id).achievement
+		if requirement == achievement_id or (requirement == ALL_ACHIEVEMENTS and is_reward_available(id, earned)):
+			ids.append(id)
+	return ids
 
 
 static func clean_nickname_color(value: Variant) -> String:

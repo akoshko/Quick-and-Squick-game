@@ -16,14 +16,7 @@ const SOUND_OFF := preload("res://src/ui/sound_off.png")
 const HIDDEN_MEDAL = preload("res://src/quests/achievements/medal_hidden.svg")
 const EARNED_MEDAL = preload("res://src/quests/achievements/medal_earned.svg")
 const UNEARNED_MEDAL = preload("res://src/quests/achievements/medal_unearned.svg")
-const ACHIEVEMENTS := {
-	&"boss_victory": ["Легендарная битва", "Принять участие в победе над боссом."],
-	&"first_steps": ["Первые шаги", "Пройти квест «Освоиться в офисе»."],
-	&"steve_jobs": ["Стив Джобс", "Съесть все яблоки, пока модератор их не пополнил.", true],
-	&"clean_cookies": ["Чистим cookie", "Съесть всё печенье, пока модератор его не пополнил.", true],
-	&"hide_and_seek": ["А я тебя вижу!", "Пройти квест «Прятки».", true],
-	&"zombie_apocalypse": ["Третий день хакатона", "Пережить зомби-апокалипсис: собрать хотя бы один стаканчик кофе.", true],
-}
+const ACHIEVEMENTS := Achievements.LIST   # общий список достижений (Achievements.gd)
 
 # Цвета бейджа
 const GOLD := Color(1, 0.85, 0.45)                 # уведомления на тёмном фоне
@@ -38,6 +31,7 @@ const TILE_BORDER := Color(0.8, 0.77, 0.72)
 const ROPE := Color(0.94, 0.91, 0.83)
 const ROPE_SHADOW := Color(0.62, 0.58, 0.5)
 const DONE_TEXT := MUTED_INK                       # выполненные задания — приглушённые и зачёркнутые
+static var NEWS_ICON := _make_news_icon()          # красный кружок с «!» — «есть новое»
 
 const SWING := [3.2, -2.3, 1.4, -0.7, 0.25, 0.0]   # покачивание бейджа (градусы), затухающее
 
@@ -62,7 +56,10 @@ var _profile_preview: TextureRect
 var _profile_name: Label
 var _accessory_slots: Dictionary[StringName, Button] = {}
 var _achievement_cards: HFlowContainer
-var _achievement_hint: Label   # название и описание нажатого достижения
+var _achievement_hint: Label   # название и описание нажатого достижения (в облачке)
+var _achievement_callout: PanelContainer   # облачко под нажатым значком
+var _callout_for := &""         # для какого достижения открыто облачко
+var _achievement_tip: Label     # «Нажми на значок…» (на телефоне)
 var _achievement_popups: VBoxContainer
 var _cards_by_id: Dictionary[StringName, PanelContainer] = {}
 var _boss_bar: BossBar
@@ -82,6 +79,7 @@ func _ready() -> void:
 	GameManager.achievements_reset.connect(_on_achievements_reset)
 	PlayerProfile.changed.connect(_refresh_profile)
 	PlayerProfile.accessory_changed.connect(_refresh_profile)
+	PlayerProfile.news_changed.connect(_refresh_news)
 	_boss_bar = get_tree().get_first_node_in_group("boss_bar") as BossBar
 	if _boss_bar:
 		_boss_bar.health_layout_changed.connect(_layout_achievement_popups)
@@ -168,6 +166,8 @@ func _build() -> void:
 	_tabs.tab_alignment = TabBar.ALIGNMENT_CENTER
 	_tabs.tab_changed.connect(func(_tab: int) -> void:
 		_scroll_to_top()
+		_hide_callout()
+		_mark_profile_seen_if_open()
 		_swing(1.0))
 	content.add_child(_tabs)
 	_style_tabs()
@@ -311,6 +311,7 @@ func _build_accessory_grid(inventory: VBoxContainer, title: String, ids: Array) 
 	for id: String in ids:
 		var slot := Button.new()
 		slot.pressed.connect(PlayerProfile.equip_accessory.bind(id))
+		slot.pressed.connect(PlayerProfile.mark_reward_seen.bind(id))
 		var style := StyleBoxFlat.new()
 		style.bg_color = TILE
 		style.set_border_width_all(1)
@@ -342,6 +343,18 @@ func _build_accessory_grid(inventory: VBoxContainer, title: String, ids: Array) 
 		label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		label.add_theme_color_override("font_color", INK)
 		content.add_child(label)
+
+		# «Новое» в углу — пока игрок не нажмёт на предмет
+		var fresh := Label.new()
+		fresh.name = "New"
+		fresh.text = "Новое"
+		fresh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		fresh.add_theme_color_override("font_color", Color.WHITE)
+		var fresh_style := StyleBoxFlat.new()
+		fresh_style.bg_color = BADGE_RED
+		fresh.add_theme_stylebox_override("normal", fresh_style)
+		fresh.visible = false
+		slot.add_child(fresh)
 		_accessory_slots[id] = slot
 	return grid
 
@@ -356,14 +369,25 @@ func _section_heading(title: String) -> Label:
 func _refresh_profile(_id := "") -> void:
 	_profile_preview.texture = PlayerProfile.texture()
 	_profile_name.text = PlayerProfile.nickname
-	_profile_name.add_theme_color_override("font_color", _ink_tint(CharacterLook.nickname_tint(PlayerProfile.nickname_color)))
+	NicknameStyle.apply(_profile_name, PlayerProfile.nickname_color, true, INK)
 	for id: String in _accessory_slots:
 		_refresh_accessory(id)
+	_refresh_news()
 
 
-# Цвет ника на белом бейдже: светлые цвета (белый по умолчанию) — тёмным
-static func _ink_tint(tint: Color) -> Color:
-	return INK if tint.get_luminance() > 0.75 else tint
+# Что нового: «Новое» на предметах и «!» у вкладки «Профиль»
+func _refresh_news() -> void:
+	for id: String in _accessory_slots:
+		_accessory_slots[id].get_node("New").visible = PlayerProfile.is_new_reward(id)
+	var profile := _tabs.get_node_or_null("Профиль") as Control
+	if profile:   # пока бейдж собирается, вкладки ещё может не быть
+		_tabs.set_tab_icon(_tabs.get_tab_idx_from_control(profile), NEWS_ICON if PlayerProfile.has_profile_news() else null)
+
+
+# Профиль открыт на экране — всё полученное в нём уже не «новое»
+func _mark_profile_seen_if_open() -> void:
+	if is_open() and _tabs.get_current_tab_control() == _tabs.get_node_or_null("Профиль"):
+		PlayerProfile.mark_profile_seen()
 
 
 func _refresh_accessory(id: String) -> void:
@@ -388,11 +412,32 @@ func _build_achievements() -> void:
 	_achievement_cards = HFlowContainer.new()
 	_achievement_cards.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	section.add_child(_achievement_cards)
+	_achievement_tip = Label.new()
+	_achievement_tip.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_achievement_tip.add_theme_color_override("font_color", MUTED_INK)
+	_achievement_tip.text = "Нажми на значок, чтобы узнать, за что он."
+	section.add_child(_achievement_tip)
+
+	# Облачко с названием и описанием — всплывает прямо под нажатым значком
+	_achievement_callout = PanelContainer.new()
+	_achievement_callout.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var callout_style := StyleBoxFlat.new()
+	callout_style.bg_color = Color.WHITE
+	callout_style.border_color = BADGE_RED
+	callout_style.set_border_width_all(2)
+	callout_style.shadow_color = Color(0, 0, 0, 0.25)
+	_achievement_callout.add_theme_stylebox_override("panel", callout_style)
+	_achievement_callout.visible = false
+	_badge.add_child(_achievement_callout)
 	_achievement_hint = Label.new()
 	_achievement_hint.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	_achievement_hint.add_theme_color_override("font_color", MUTED_INK)
-	_achievement_hint.text = "Нажми на значок, чтобы узнать, за что он."
-	section.add_child(_achievement_hint)
+	_achievement_hint.add_theme_color_override("font_color", INK)
+	_achievement_callout.add_child(_achievement_hint)
+	var scroll := _profile_layout.get_parent().get_parent() as ScrollContainer
+	scroll.get_v_scroll_bar().value_changed.connect(func(_value: float) -> void: _hide_callout())
+	_panel.gui_input.connect(func(event: InputEvent) -> void:
+		if event is InputEventMouseButton and event.pressed:
+			_hide_callout())
 
 	for id: StringName in ACHIEVEMENTS:
 		var card := _make_achievement_card(true)
@@ -460,9 +505,40 @@ func _refresh_achievement(id: StringName) -> void:
 func _on_achievement_card_input(event: InputEvent, id: StringName) -> void:
 	var click := event as InputEventMouseButton
 	if click and click.pressed and click.button_index == MOUSE_BUTTON_LEFT:
-		var labels := _cards_by_id[id].get_node("Row/Labels")
-		_achievement_hint.text = "%s — %s" % [labels.get_node("Title").text, labels.get_node("Description").text]
-		_achievement_hint.add_theme_color_override("font_color", INK)
+		if _achievement_callout.visible and _callout_for == id:
+			_hide_callout()   # второе нажатие — закрыть
+		else:
+			_show_callout(id)
+
+
+# Облачко под значком (если снизу не помещается — над ним), по ширине бейджа
+func _show_callout(id: StringName) -> void:
+	var card := _cards_by_id[id]
+	var labels := card.get_node("Row/Labels")
+	_achievement_hint.text = "%s — %s" % [labels.get_node("Title").text, labels.get_node("Description").text]
+	var step := UiSpacing.step(get_viewport().get_visible_rect().size)
+	var width := _badge.size.x - step * 6
+	_achievement_hint.custom_minimum_size.x = width - step * 4
+	# Перенос строк считается по текущей ширине надписи: задаём её до подсчёта
+	# высоты, иначе облачко вытягивается на весь экран
+	_achievement_hint.size = Vector2(width - step * 4, 0)
+	_achievement_hint.update_minimum_size()
+	_achievement_callout.visible = true
+	_achievement_callout.reset_size()
+	var to_badge := _badge.get_global_transform().affine_inverse()
+	var top := to_badge * card.get_global_rect().position
+	var bottom := to_badge * card.get_global_rect().end
+	var y := bottom.y + step
+	if y + _achievement_callout.size.y > _badge.size.y - step:
+		y = top.y - _achievement_callout.size.y - step
+	_achievement_callout.position = Vector2(step * 3, y)
+	_callout_for = id
+
+
+func _hide_callout() -> void:
+	if _achievement_callout:
+		_achievement_callout.visible = false
+	_callout_for = &""
 
 
 func _set_card_content(card: PanelContainer, icon: Texture2D, title: String,
@@ -483,17 +559,32 @@ func _on_achievements_reset() -> void:
 
 
 func _on_achievement_unlocked(id: StringName) -> void:
+	# Одна карточка на событие: достижение и все награды за него
+	var rewards: Array[String] = []
+	var icon: Texture2D = EARNED_MEDAL
+	for accessory_id in CharacterLook.rewards_unlocked_by(id, GameManager.has_achievement):
+		if not _accessory_slots.has(accessory_id):
+			continue
+		_refresh_accessory(accessory_id)
+		rewards.append(reward_title(accessory_id))
+		if not _cards_by_id.has(id):
+			icon = CharacterLook.accessory_icon(accessory_id)
 	if _cards_by_id.has(id):
 		_refresh_achievement(id)
-		_show_notification("Новое достижение", ACHIEVEMENTS[id][0], EARNED_MEDAL)
-	for accessory_id: String in _accessory_slots:
-		var option := CharacterLook.accessory_option(accessory_id)
-		if option.get("achievement") == id:
-			_refresh_accessory(accessory_id)
-			var title: String = option.title
-			if CharacterLook.NICKNAME_COLORS.has(accessory_id):
-				title = "Цвет ника: " + title.to_lower()
-			_show_notification("Новый аксессуар", title, CharacterLook.accessory_icon(accessory_id))
+		# Заголовок — само достижение, строкой ниже — награда (карточка в две строки)
+		var text: String = "Новое достижение"
+		if not rewards.is_empty():
+			text = "Награда: " + ", ".join(rewards).to_lower()
+		_show_notification(ACHIEVEMENTS[id][0], text, icon)
+	elif not rewards.is_empty():
+		_show_notification("Новая награда", ", ".join(rewards), icon)
+	_refresh_news()
+
+
+## Как награда называется в уведомлении: предмет — как есть, цвет ника — «Цвет ника: …»
+static func reward_title(id: String) -> String:
+	var title: String = CharacterLook.accessory_option(id).title
+	return "Цвет ника: " + title.to_lower() if CharacterLook.NICKNAME_COLORS.has(id) else title
 
 
 # --- Уведомления о достижениях (поверх игры, справа сверху) ---
@@ -654,6 +745,19 @@ func _layout() -> void:
 	_achievement_cards.add_theme_constant_override("v_separation", padding)
 	(_achievement_cards.get_parent() as VBoxContainer).add_theme_constant_override("separation", padding)
 	_achievement_hint.add_theme_font_size_override("font_size", slot_font)
+	_achievement_tip.add_theme_font_size_override("font_size", slot_font)
+	_achievement_tip.visible = portrait
+	(_achievement_callout.get_theme_stylebox("panel") as StyleBoxFlat).set_content_margin_all(step * 2)
+	(_achievement_callout.get_theme_stylebox("panel") as StyleBoxFlat).set_corner_radius_all(step)
+	for slot in _accessory_slots.values():
+		var fresh := slot.get_node("New") as Label
+		fresh.add_theme_font_size_override("font_size", maxi(7, roundi(font * 0.55)))
+		var fresh_style := fresh.get_theme_stylebox("normal") as StyleBoxFlat
+		fresh_style.content_margin_left = step
+		fresh_style.content_margin_right = step
+		fresh_style.set_corner_radius_all(step)
+		fresh.reset_size()
+		fresh.position = Vector2(slot_side - fresh.size.x - 2, 2)
 	for card in _achievement_cards.get_children():
 		_layout_achievement_card(card, font, step)
 		# Телефон — только значок; компьютер — значок и название (описание — по нажатию)
@@ -942,6 +1046,7 @@ func open() -> void:
 	_drop_tween.tween_property(_badge, "position:y", _rest_y, 0.35).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
 	_swing(0.7)
 	_close_button.grab_focus()
+	_mark_profile_seen_if_open()
 
 
 func close() -> void:
@@ -954,6 +1059,7 @@ func close() -> void:
 		_drop_tween.kill()
 	_badge.position.y = _rest_y
 	_scroll_to_top()   # открылся снова — всё наверху
+	_hide_callout()
 	_root.hide()
 	if not Net.is_network():
 		get_tree().paused = _was_paused
@@ -992,3 +1098,20 @@ func _input(event: InputEvent) -> void:
 			close()
 		elif not get_tree().paused and GameManager.state == GameManager.GameState.PLAYING:
 			open()
+
+
+## Красный кружок с белым «!» (значок «есть новое»): для вкладки и кнопки «Журнал»
+static func _make_news_icon(side := 14) -> ImageTexture:
+	var image := Image.create_empty(side, side, false, Image.FORMAT_RGBA8)
+	var center := Vector2(side, side) / 2.0
+	for y in side:
+		for x in side:
+			if Vector2(x + 0.5, y + 0.5).distance_to(center) <= side / 2.0:
+				image.set_pixel(x, y, BADGE_RED)
+	var mid := floori(side / 2.0) - 1
+	for y in range(3, side - 6):
+		image.set_pixel(mid, y, Color.WHITE)
+		image.set_pixel(mid + 1, y, Color.WHITE)
+	image.set_pixel(mid, side - 4, Color.WHITE)
+	image.set_pixel(mid + 1, side - 4, Color.WHITE)
+	return ImageTexture.create_from_image(image)

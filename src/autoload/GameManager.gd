@@ -34,7 +34,7 @@ func sync_reward_achievements(earned: Array) -> void:
 	for catalog in [CharacterLook.ACCESSORIES, CharacterLook.NICKNAME_COLORS]:
 		for option in catalog.values():
 			var id: StringName = option.get("achievement", &"")
-			if id != &"" and id not in earned:
+			if id != &"" and id != CharacterLook.ALL_ACHIEVEMENTS and id not in earned:
 				_unlocked_achievements.erase(id)
 	for id: StringName in earned:
 		unlock_achievement(id)

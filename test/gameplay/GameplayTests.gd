@@ -160,6 +160,13 @@ func _test_journal_profile() -> void:
 	first_card.gui_input.emit(card_click)
 	_check(_journal._achievement_hint.text.begins_with(QuestPanel.ACHIEVEMENTS[&"first_steps"][0]),
 		"Tapping an achievement icon shows its name and description")
+	var callout: Control = _journal._achievement_callout
+	var card_rect := first_card.get_global_rect()
+	var callout_rect := callout.get_global_rect()
+	_check(callout.visible and callout_rect.size.y < _journal._badge.size.y / 4.0
+		and (callout_rect.position.y >= card_rect.end.y or callout_rect.end.y <= card_rect.position.y)
+		and callout_rect.position.x >= _journal._badge.get_global_rect().position.x,
+		"The achievement description is a compact callout next to the tapped icon")
 	tabs.current_tab = 0
 	await get_tree().process_frame
 	var swinging := not is_zero_approx(badge.rotation)
@@ -182,32 +189,48 @@ func _test_journal_profile() -> void:
 		and layout_rect.position.y > profile_rect_global.position.y
 		and layout_rect.end.x < profile_rect_global.end.x,
 		"The profile content is inset from the top and both sides")
-	var starter := _journal._accessory_slots[CharacterLook.STARTER_ACCESSORY]
+	var empty := _journal._accessory_slots[CharacterLook.NO_ACCESSORY]
 	var locked := _journal._accessory_slots[&"first_steps"]
 	_check(_journal._accessory_grid.get_child_count() == CharacterLook.ACCESSORIES.size()
-		and starter.modulate == Color.WHITE and locked.modulate.r < 1.0
+		and empty.modulate == Color.WHITE and locked.modulate.r < 1.0
 		and locked.disabled and locked.get_node("Content/Icon").texture == CharacterLook.accessory_icon("first_steps"),
 		"Each accessory has a visible icon and locked slots are dimmed")
-	var orange := _journal._accessory_slots[&"orange"]
+	_check(CharacterLook.STARTER_ACCESSORY == CharacterLook.NO_ACCESSORY
+		and not CharacterLook.ACCESSORIES.has("participant_badge") and not CharacterLook.NICKNAME_COLORS.has("orange")
+		and CharacterLook.accessory_option("first_steps").title == "Значок хакатона",
+		"The hackathon pin replaces the participant badge; the novice badge, plain apple and orange nickname are gone")
 	var blue := _journal._accessory_slots[&"blue"]
 	var apple := _journal._accessory_slots[&"apple"]
-	var empty := _journal._accessory_slots[CharacterLook.NO_ACCESSORY]
-	orange.pressed.emit()
 	blue.pressed.emit()
 	_check(_journal._nickname_color_grid.get_child_count() == CharacterLook.NICKNAME_COLORS.size()
-		and orange.disabled and blue.disabled and PlayerProfile.nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR
+		and blue.disabled and PlayerProfile.nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR
 		and not _journal._accessory_slots.has(&"boss_victory") and apple.disabled
 		and not empty.disabled and empty.accessibility_name == "Нет аксессуара",
 		"Nickname rewards start locked and the removed medal has no inventory slot")
+	var earned_some := func(id: StringName) -> bool: return id != &"zombie_apocalypse"
+	var earned_all := func(_id: StringName) -> bool: return true
+	_check(not CharacterLook.is_reward_available("cat_hat", earned_some) and CharacterLook.is_reward_available("cat_hat", earned_all)
+		and not CharacterLook.is_reward_available("mascot", earned_some) and CharacterLook.is_reward_available("mascot", earned_all),
+		"The cat hat and the animated mascot nickname need every achievement")
+	_check(CharacterLook.accessory_option("apple").achievement == &"steve_jobs"
+		and CharacterLook.accessory_option("cookie").achievement == &"clean_cookies"
+		and CharacterLook.accessory_option("detective").achievement == &"hide_and_seek"
+		and CharacterLook.accessory_option("zz").achievement == &"zombie_apocalypse"
+		and CharacterLook.accessory_option("green").achievement == &"zombie_apocalypse"
+		and CharacterLook.accessory_option("blue").get("stars", false),
+		"Each achievement has its own reward")
 	_check(_journal._profile_preview.get_parent().get_child_count() == 2,
 		"The profile preview contains the player sprite and nickname without reward descriptions")
-	var portrait_slot_side := starter.size.x
+	var portrait_slot_side := empty.size.x
 	_check(portrait_slot_side > 0 and _journal._accessory_slots.values().all(
 		func(slot: Button) -> bool: return slot.size == Vector2(portrait_slot_side, portrait_slot_side)
 	), "Portrait slots are uniform squares across grids of different lengths and availability")
-	_check(empty.position.x < starter.position.x and starter.position.x < locked.position.x
-		and locked.position.y == empty.position.y and apple.position.y > empty.position.y
-		and apple.position.x == empty.position.x,
+	var grid_slots := _journal._accessory_grid.get_children()
+	var columns := _journal._accessory_grid.columns
+	_check(columns > 1 and grid_slots[0].position.x < grid_slots[1].position.x
+		and grid_slots[1].position.y == grid_slots[0].position.y
+		and grid_slots[columns].position.y > grid_slots[0].position.y
+		and grid_slots[columns].position.x == grid_slots[0].position.x,
 		"Portrait inventory fills the first row left to right before wrapping")
 	var portrait_size := get_window().size
 	get_window().size = Vector2i(844, 390)
@@ -216,7 +239,7 @@ func _test_journal_profile() -> void:
 	_check(badge.size.y > badge.size.x, "The journal stays a vertical badge on a wide screen")
 	_check(first_card.get_node("Row/Labels").visible and first_card.get_node("Row/Labels/Title").text == QuestPanel.ACHIEVEMENTS[&"first_steps"][0],
 		"On a computer achievements show their names")
-	var landscape_slot_side := starter.size.x
+	var landscape_slot_side := empty.size.x
 	_check(landscape_slot_side > 0 and _journal._accessory_slots.values().all(
 		func(slot: Button) -> bool: return slot.size == Vector2(landscape_slot_side, landscape_slot_side)
 	), "Landscape slots remain uniform squares")
@@ -261,9 +284,9 @@ func _test_notification_overflow() -> void:
 func _test_network_profile() -> void:
 	var valid := PlayerRegistry.clean_profile({"title_first": " Сонный ", "title_second": "Кодер",
 		"hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink", "accessory": "first_steps",
-		"nickname_color": "orange"}, 3, {&"first_steps": true})
+		"nickname_color": "blue"}, 3, {&"first_steps": true, &"boss_victory": true})
 	_check(valid == {"name": "Сонный Кодер", "hoodie": "blue", "hair_style": "mohawk", "hair_color": "pink",
-		"accessory": "first_steps", "nickname_color": "orange"},
+		"accessory": "first_steps", "nickname_color": "blue"},
 		"Server keeps a valid network profile and trims its nickname words")
 	var forged := PlayerRegistry.clean_profile({"title_first": "<b>Админ</b>", "title_second": "Кодер",
 		"hoodie": "gold", "hair_style": 5, "hair_color": null, "accessory": {"name": "fake"},
@@ -327,7 +350,7 @@ func _test_network_profile() -> void:
 	_check(remote._label.text == "Игрок 4", "A network player without a profile is labelled «Игрок N»")
 	remote.profile = valid
 	_check(remote._label.text == "Сонный Кодер"
-		and remote._label.get_theme_color("font_color") == CharacterLook.nickname_tint("orange")
+		and remote._label.get_theme_color("font_color") == CharacterLook.nickname_tint("blue")
 		and remote._sprite.texture == CharacterLook.build("blue", "mohawk", "pink", "first_steps"),
 		"A replicated profile sets the network player's look and nickname label")
 	var badge_texture := remote._sprite.texture
@@ -480,30 +503,32 @@ func _test_quests() -> void:
 	var badge := _journal._accessory_slots[&"first_steps"]
 	_check(badge.modulate == Color.WHITE and not badge.disabled,
 		"Completing the office quest makes its accessory available in the profile")
-	var reward_popups := _journal._achievement_popups.get_children()
-	var reward_names: Array[String] = []
-	for notification in reward_popups:
-		if notification.get_node("Row/Labels/Title").text == "Новый аксессуар":
-			reward_names.append(notification.get_node("Row/Labels/Description").text)
-	_check(reward_names == ["Значок новичка", "Цвет ника: оранжевый"],
-		"The training achievement announces both rewards in inventory order")
+	var reward_popup := _journal._achievement_popups.get_child(-1)
+	_check(reward_popup.get_node("Row/Labels/Title").text == "Первые шаги"
+		and reward_popup.get_node("Row/Labels/Description").text == "Награда: значок хакатона",
+		"The training achievement and its hackathon pin share one notification")
+	_check(badge.get_node("New").visible and PlayerProfile.is_new_reward("first_steps")
+		and _progress._news_dot.visible and PlayerProfile.has_profile_news(),
+		"A new reward is marked «Новое» and the journal button shows «!»")
 	badge.pressed.emit()
 	_check(PlayerProfile.to_dict().accessory == "first_steps" and _player._sprite.texture == PlayerProfile.texture()
 		and _journal._profile_preview.texture == PlayerProfile.texture(),
 		"Equipping an unlocked accessory updates the local player, profile, and network payload")
-	var orange := _journal._accessory_slots[&"orange"]
-	_check(not orange.disabled, "Completing training unlocks the orange nickname color")
-	orange.pressed.emit()
-	var orange_tint := CharacterLook.nickname_tint("orange")
-	_check(PlayerProfile.to_dict().nickname_color == "orange" and PlayerProfile.accessory == "first_steps"
-		and _player._nameplate.get_theme_color("font_color") == orange_tint
-		and _journal._profile_name.get_theme_color("font_color") == orange_tint,
-		"Equipping orange updates the local nameplate and preview while retaining the worn item")
+	_check(not badge.get_node("New").visible and not PlayerProfile.is_new_reward("first_steps"),
+		"Pressing a new item removes its «Новое» mark")
+	_journal.open()
+	var journal_tabs := _journal._tabs
+	var profile_index := journal_tabs.get_tab_idx_from_control(journal_tabs.get_node("Профиль"))
+	_check(journal_tabs.get_tab_icon(profile_index) == QuestPanel.NEWS_ICON, "The profile tab shows «!» while it has news")
+	journal_tabs.current_tab = profile_index
+	_check(journal_tabs.get_tab_icon(profile_index) == null and not PlayerProfile.has_profile_news()
+		and not _progress._news_dot.visible, "Opening the profile clears its «!» and the journal button mark")
+	journal_tabs.current_tab = 0
+	_journal.close()
 	_journal._accessory_slots[CharacterLook.NO_ACCESSORY].pressed.emit()
-	_check(PlayerProfile.accessory == CharacterLook.NO_ACCESSORY and PlayerProfile.nickname_color == "orange"
-		and _player._nameplate.get_theme_color("font_color") == orange_tint
-		and _journal._profile_preview.texture == PlayerProfile.texture() and not badge.disabled and not orange.disabled,
-		"Choosing no wearable accessory removes the badge independently of nickname color")
+	_check(PlayerProfile.accessory == CharacterLook.NO_ACCESSORY and PlayerProfile.nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR
+		and _journal._profile_preview.texture == PlayerProfile.texture() and not badge.disabled,
+		"Choosing no wearable accessory removes the pin independently of nickname color")
 	badge.pressed.emit()
 	npc.interact(_player)
 	_check(npc._label.text == "Привет!", "Quest-gated NPC switches to a greeting after completion")
@@ -586,12 +611,15 @@ func _test_quests() -> void:
 		if kind == SnackStation.Kind.APPLE:
 			var notification := _journal._achievement_popups.get_child(-1)
 			_check(steve_title.text == "Стив Джобс"
-				and notification.get_node("Row/Labels/Description").text == "Яблоко",
+				and notification.get_node("Row/Labels/Title").text == "Стив Джобс"
+				and notification.get_node("Row/Labels/Description").text == "Награда: яблоко во рту",
 				"Unlocking the hidden achievement reveals its title and announces the apple badge")
 	apple.pressed.emit()
+	var mouth: Vector2i = CharacterLook.ACCESSORY_ART["apple"].at
 	_check(PlayerProfile.accessory == "apple" and _player._sprite.texture == PlayerProfile.texture()
-		and CharacterLook.accessory_icon("apple").get_size() == Vector2(5, 6),
-		"The unlocked apple can be worn at the smaller size")
+		and CharacterLook.accessory_icon("apple").get_size() == Vector2(5, 5)
+		and mouth.y >= 9 and mouth.y <= 12,
+		"The unlocked apple is worn in the mouth")
 	_journal._accessory_slots[&"first_steps"].pressed.emit()
 	_check(Quests.all_done(), "Completing the snack and laptop quests finishes the initial quest list")
 	var refill: SnackStation = snacks.front()
@@ -737,7 +765,8 @@ func _test_boss() -> void:
 	_check(PlayerProfile.nickname_color == "blue" and PlayerProfile.accessory == "first_steps"
 		and _player._nameplate.get_theme_color("font_color") == CharacterLook.nickname_tint("blue"),
 		"Equipping the mimic reward sets the blue nameplate and leaves the worn item in place")
-	_check(popups.get_child(-1).get_node("Row/Labels/Description").text == "Цвет ника: синий",
+	_check(popups.get_child(-1).get_node("Row/Labels/Description").text == "Награда: цвет ника: синий со звёздами"
+		and _player._nameplate.get_children().filter(func(child: Node) -> bool: return child.has_meta(NicknameStyle.DECOR_META)).size() == 2,
 		"The mimic achievement announces the blue nickname reward")
 	await _wait(0.85)
 	_check(director._boss == null and director._bar.health_bottom() == 0 and not snack._locked,
@@ -1056,7 +1085,7 @@ func _test_server_forwards_personal() -> void:
 		_check(registry.tutorial_step_of(player_id) == 1, "The server records the completed tutorial dialogue")
 		Net.as_actor(FAKE_PEER, Quests.complete.bind("push_bean_bag"))
 		_check(registry.achievements_of(token).has(&"first_steps")
-			and registry.equip_accessory(FAKE_PEER, "orange") == player_id,
+			and registry.equip_accessory(FAKE_PEER, "first_steps") == player_id,
 			"The server grants the tutorial accessory only after both steps")
 		_player._interact_actor_peer = 0
 		Net.as_actor(FAKE_PEER, laptop.interact.bind(_player))

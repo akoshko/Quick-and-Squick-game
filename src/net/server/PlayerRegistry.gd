@@ -311,9 +311,7 @@ static func clean_profile(data: Variant, number: int, achievements: Dictionary =
 
 
 static func _can_equip(id: String, achievements: Dictionary) -> bool:
-	var option := CharacterLook.accessory_option(id)
-	var achievement: StringName = option.get("achievement", &"")
-	return not option.is_empty() and (achievement == &"" or achievements.has(achievement))
+	return CharacterLook.is_reward_available(id, func(achievement: StringName) -> bool: return achievements.has(achievement))
 
 
 func _profile_for(token: String, profile: Variant, number: int) -> Dictionary:

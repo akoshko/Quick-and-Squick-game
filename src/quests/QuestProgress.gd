@@ -17,6 +17,8 @@ var _panel: PanelContainer
 var _task: Label          # текст текущего задания
 var _check: TextureRect   # чекбокс задания
 var _open_button: Button
+var _news_dot: TextureRect   # «!» на кнопке «Журнал», пока в профиле есть новое
+var _shake_tween: Tween
 
 
 func _ready() -> void:
@@ -28,6 +30,8 @@ func _ready() -> void:
 	Quests.changed.connect(_refresh)
 	Quests.selected_quest_changed.connect(_refresh)
 	Quests.quest_completed.connect(_animate_completion)
+	GameManager.achievement_unlocked.connect(_on_reward_unlocked)
+	PlayerProfile.news_changed.connect(_refresh_news_dot)
 	get_viewport().size_changed.connect(_layout)
 	_refresh()
 
@@ -72,6 +76,13 @@ func _build() -> void:
 	for color_name in [&"font_color", &"font_hover_color", &"font_pressed_color", &"font_focus_color"]:
 		_open_button.add_theme_color_override(color_name, Color.WHITE)
 	box.add_child(_open_button)
+	_news_dot = TextureRect.new()
+	_news_dot.texture = QuestPanel.NEWS_ICON
+	_news_dot.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	_news_dot.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_news_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_open_button.add_child(_news_dot)
+	_refresh_news_dot()
 
 
 func _layout() -> void:
@@ -101,6 +112,9 @@ func _layout() -> void:
 	_check.custom_minimum_size = Vector2.ONE * check_size
 	_open_button.add_theme_font_size_override("font_size", font)
 	_panel.position = Vector2(margin, margin)
+	var dot := roundi(font * 1.1)
+	_news_dot.size = Vector2(dot, dot)
+	_news_dot.position = Vector2(step, (font * 2.4 - dot) / 2.0)
 	_panel.reset_size.call_deferred()
 
 
@@ -126,6 +140,48 @@ func _animate_completion(quest: Quest) -> void:
 	var tween := create_tween()
 	tween.tween_property(style, "bg_color", DONE_FLASH, 0.18)
 	tween.tween_property(style, "bg_color", normal_color, Quests.COMPLETION_DISPLAY_TIME - 0.18)
+
+
+# Новая награда или достижение: плашка трясётся, из неё вылетает «!»
+func _on_reward_unlocked(_id: StringName) -> void:
+	# Трясём весь слой HUD (offset), а не плашку: её место и размер не меняются —
+	# по ним раскладываются полоска босса и уведомления
+	if _shake_tween:
+		_shake_tween.kill()
+	offset = Vector2.ZERO
+	_shake_tween = create_tween()
+	for shift: float in [7.0, -6.0, 5.0, -3.0, 1.5, 0.0]:
+		_shake_tween.tween_property(self, "offset:x", shift, 0.05)
+	_pop_exclamation()
+	_refresh_news_dot()
+
+
+func _pop_exclamation() -> void:
+	var mark := Label.new()
+	mark.text = "!"
+	mark.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var font := _task.get_theme_font_size(&"font_size")
+	mark.add_theme_font_size_override("font_size", font * 2)
+	mark.add_theme_color_override("font_color", QuestPanel.BADGE_RED)
+	mark.add_theme_color_override("font_outline_color", Color.WHITE)
+	mark.add_theme_constant_override("outline_size", maxi(4, roundi(font * 0.35)))
+	add_child(mark)
+	mark.reset_size()
+	var start := _panel.position + Vector2(_panel.size.x - mark.size.x * 0.6, -mark.size.y * 0.3)
+	mark.position = start
+	mark.pivot_offset = mark.size / 2.0
+	mark.scale = Vector2.ZERO
+	var t := create_tween()
+	t.tween_property(mark, "scale", Vector2.ONE * 1.3, 0.12).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+	t.tween_property(mark, "scale", Vector2.ONE, 0.1)
+	t.tween_property(mark, "position:y", start.y - font * 2.5, 0.8).set_ease(Tween.EASE_OUT)
+	t.parallel().tween_property(mark, "modulate:a", 0.0, 0.8).set_delay(0.3)
+	t.tween_callback(mark.queue_free)
+
+
+func _refresh_news_dot(_value: Variant = null) -> void:
+	if _news_dot:
+		_news_dot.visible = PlayerProfile.has_news()
 
 
 func _open_quest_list() -> void:
