@@ -19,6 +19,8 @@ run/main_scene="res://src/Main.tscn"
 run/flush_stdout_on_print=true
 config/features=PackedStringArray("4.7", "Mobile")
 config/icon="uid://c0yvif4h4sw0c"
+boot_splash/bg_color=Color(0, 0, 0, 1)
+boot_splash/show_image=false
 
 [autoload]
 
