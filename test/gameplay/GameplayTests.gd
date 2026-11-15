@@ -73,6 +73,8 @@ func _run() -> void:
 	await _test_world_sync_glide()
 	_test_world_sync_replay_call()
 	_test_server_forwards_personal()
+	_test_admin_achievement_reset()
+	_test_special_skins()
 	await _test_zombie_uprising()
 	if _failures == 0:
 		print("Completed %d gameplay checks" % _checks)
@@ -1053,3 +1055,121 @@ func _test_zombie_uprising() -> void:
 		uprising.take_coffee(uprising._cups.keys()[0], _player)
 	_check(not uprising.is_failed and uprising.state == ZombieUprising.State.CALMING
 		and GameManager.has_achievement(ZombieUprising.ACHIEVEMENT), "Collecting all coffee wins and awards the achievement")
+
+
+# Админка: «Сбросить ачивки» игроку и всем — сервер забывает их, снимает награды, журнал гаснет
+func _test_admin_achievement_reset() -> void:
+	Net.server = NetServer.new()
+	var registry := Net.server.registry
+	var admin := AdminHttp.new()
+	admin.token = "admin-test-token"
+	admin.server = Net.server
+	var headers := {"x-admin-token": admin.token}
+	var first_token := "reset-player-00001"
+	var second_token := "reset-player-00002"
+	var first: String = registry.admit(first_token, "player", 0.0).player_id
+	registry.bind_peer(first, 2)
+	var second: String = registry.admit(second_token, "player", 0.0).player_id
+	for token in [first_token, second_token]:
+		registry.award_achievement(token, &"first_steps")
+		registry.award_achievement(token, &"boss_victory")
+	registry.equip_accessory(2, "first_steps")
+	registry.equip_accessory(2, "blue")
+	var gone_token := "reset-player-00003"
+	registry.award_achievement(gone_token, &"boss_victory")
+
+	var res := admin.route("POST", "/players/%s/achievements/reset" % first, headers)
+	_check(res.status == 200, "Resetting one player's achievements is implemented in the admin API")
+	var profile := registry.profile_of(first)
+	_check(registry.achievements_of(first_token).is_empty() and registry.achievements_of(second_token).size() == 2,
+		"A player reset clears only that player's achievements")
+	_check(profile.accessory == CharacterLook.STARTER_ACCESSORY and profile.nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR,
+		"A player reset removes the rewards that player was wearing")
+	_check(registry.equip_accessory(2, "blue") == "", "Rewards stay locked after an achievement reset")
+	_check(admin.route("POST", "/players/p999/achievements/reset", headers).status == 404,
+		"Resetting an unknown player's achievements reports not found")
+	_check(admin.route("GET", "/achievements/reset", headers).status == 405, "The reset-all route accepts only POST")
+	res = admin.route("POST", "/achievements/reset", headers)
+	_check(res.status == 200 and registry.achievements_of(second_token).is_empty()
+		and registry.achievements_of(gone_token).is_empty(),
+		"Resetting everyone's achievements also covers sessions that are not in the game")
+	Net.server.free()
+	Net.server = null
+	admin.free()
+
+	# клиент: сброс с сервера гасит карточки журнала и снимает надетую награду
+	GameManager.unlock_achievement(&"boss_victory")
+	PlayerProfile.equip_accessory("blue")
+	var card := _journal._cards_by_id[&"boss_victory"]
+	var title: Label = card.get_node("Row/Labels/Title")
+	Net.personal_call(&"GameManager", &"reset_achievements", [])
+	_check(not GameManager.has_achievement(&"boss_victory") and not GameManager.has_achievement(&"first_steps"),
+		"The client forgets all achievements on a server reset")
+	_check(title.get_theme_color("font_color") != QuestPanel.GOLD and PlayerProfile.nickname_color == CharacterLook.DEFAULT_NICKNAME_COLOR,
+		"The journal shows achievements as unearned and the reward is taken off after a reset")
+	GameManager.unlock_achievement(&"first_steps")
+	GameManager.unlock_achievement(&"boss_victory")
+
+
+# Админка: особые скины создателей по токену сессии — спрайт, профиль, сохранение
+func _test_special_skins() -> void:
+	var registry := PlayerRegistry.new()
+	var forged := PlayerRegistry.clean_profile({"special_skin": "dasha"}, 1)
+	_check(not forged.has("special_skin") or forged.special_skin == "", "A client cannot claim a special skin in its profile")
+	var token := "creator-session-0001"
+	var player_id: String = registry.admit(token, "player", 0.0, {"special_skin": "artem"}).player_id
+	_check(registry.profile_of(player_id).special_skin == "", "Joining with a forged special skin keeps the normal look")
+	_check(not registry.set_special_skin(token, "unknown").ok and not registry.set_special_skin("bad token!", "dasha").ok,
+		"The server rejects unknown skins and malformed tokens")
+	var res := registry.set_special_skin(token, "dasha")
+	_check(res.ok and res.player_id == player_id and registry.profile_of(player_id).special_skin == "dasha"
+		and registry.records()[0].skin == "★ Даша", "Assigning a special skin dresses the session's character at once")
+	var later := "creator-session-0002"
+	_check(registry.set_special_skin(later, "mark").player_id == "", "A special skin can be assigned before the session joins")
+	var later_id: String = registry.admit(later, "player", 1.0, {}).player_id
+	_check(registry.profile_of(later_id).special_skin == "mark", "A session gets its assigned skin when it joins")
+	registry.admit(token, "player", 2.0, {"title_first": "Бодрый", "title_second": "Ёжик"})
+	_check(registry.profile_of(player_id).special_skin == "dasha", "A special skin survives a rejoin with a new profile")
+
+	var path := OS.get_user_data_dir().path_join("special_skins_test.json")
+	registry.special_skins_path = path
+	registry.save_special_skins()
+	var restored := PlayerRegistry.new()
+	restored.special_skins_path = path
+	restored.load_special_skins()
+	_check(restored.special_skin_of(token) == "dasha" and restored.special_skin_of(later) == "mark",
+		"Special skins are restored after a server restart")
+	_check(registry.set_special_skin(token, "").ok and registry.profile_of(player_id).special_skin == ""
+		and registry.special_skins().size() == 1, "Removing a special skin returns the normal look")
+	DirAccess.remove_absolute(path)
+
+	var admin := AdminHttp.new()
+	admin.token = "admin-test-token"
+	Net.server = NetServer.new()
+	admin.server = Net.server
+	var headers := {"x-admin-token": admin.token}
+	var pid: String = Net.server.registry.admit(token, "player", 0.0).player_id
+	_check(admin.route("POST", "/skins/%s/valera" % token, headers).status == 200
+		and Net.server.registry.profile_of(pid).special_skin == "valera", "The admin API assigns a special skin by token")
+	_check(admin.route("POST", "/players/%s/skin/none" % pid, headers).status == 200
+		and Net.server.registry.profile_of(pid).special_skin == "", "The admin API removes a special skin from a player row")
+	_check(admin.route("POST", "/skins/%s/nobody" % token, headers).status == 400, "The admin API rejects an unknown skin")
+	var stats: Dictionary = admin.route("GET", "/stats", headers).body
+	_check(stats.special_skin_catalog.size() == CharacterLook.SPECIAL_SKINS.size(), "Admin stats list the special skins")
+	_check(stats.list[0].token == token, "Admin stats show each player's session token")
+	Net.server.free()
+	Net.server = null
+	admin.free()
+
+	var remote: Player = load("res://src/player/Player.tscn").instantiate()
+	remote.visible = false
+	remote.player_number = 5
+	_game.add_child(remote)
+	for id: String in CharacterLook.SPECIAL_SKINS:
+		remote.profile = {"name": "Создатель", "hoodie": "red", "accessory": "first_steps", "special_skin": id}
+		_check(remote._sprite.texture == load(CharacterLook.SPECIAL_SKINS[id].texture),
+			"A replicated special skin shows the creator sprite: " + id)
+	remote.profile = {"name": "Создатель", "hoodie": "red", "special_skin": ""}
+	_check(remote._sprite.texture == CharacterLook.build_from(remote.profile)
+		and remote._sprite.texture != load(CharacterLook.SPECIAL_SKINS.dasha.texture), "Without a special skin the layered look returns")
+	remote.free()

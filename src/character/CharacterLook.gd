@@ -26,6 +26,14 @@ const NICKNAME_COLORS := {
 	"orange": {"title": "Оранжевый", "tint": Color("#ff9d43"), "achievement": &"first_steps"},
 	"blue": {"title": "Синий", "tint": Color("#75aaff"), "achievement": &"boss_victory"},
 }
+## Особые скины создателей игры: готовые спрайты 32×32 вместо собранных слоёв.
+## Выдаёт только сервер (админка, по токену сессии); из профиля игрока не принимаются.
+const SPECIAL_SKINS := {
+	"dasha": {"title": "Даша", "texture": "res://src/dasha.png"},
+	"artem": {"title": "Артём", "texture": "res://src/artem.png"},
+	"valera": {"title": "Валера", "texture": "res://src/valera.png"},
+	"mark": {"title": "Марк", "texture": "res://src/mark.png"},
+}
 const STREAK_MAX_ROW := 9                     # прядка — только над лбом
 static var HOODIE_KEY := Color8(161, 40, 35)  # красное худи в body.png
 static var HAIR_KEY := Color8(115, 72, 41)    # коричневые волосы в hair_*.png
@@ -81,8 +89,12 @@ static var _accessory_icons: Dictionary[String, Texture2D] = {}
 
 
 ## Текстура персонажа для выбранных вариантов (id из списков выше).
-## Неизвестный id заменяется первым вариантом списка.
-static func build(hoodie_id: String, style_id: String, color_id: String, accessory_id := "") -> Texture2D:
+## Неизвестный id заменяется первым вариантом списка. Особый скин (SPECIAL_SKINS) заменяет
+## тело, худи и причёску целиком; аксессуар на него не надевается, чтобы не закрыть рисунок.
+static func build(hoodie_id: String, style_id: String, color_id: String, accessory_id := "",
+		special_skin := "") -> Texture2D:
+	if SPECIAL_SKINS.has(special_skin):
+		return load(SPECIAL_SKINS[special_skin].texture) as Texture2D
 	var key := "%s/%s/%s/%s" % [hoodie_id, style_id, color_id, accessory_id]
 	if _cache.has(key):
 		return _cache[key]
@@ -127,6 +139,7 @@ static func sanitize(data: Dictionary) -> Dictionary:
 		"hair_style": find(HAIR_STYLES, str(data.get("hair_style", ""))).id,
 		"hair_color": find(HAIR_COLORS, str(data.get("hair_color", ""))).id,
 		"accessory": clean_accessory(data.get("accessory")),
+		"special_skin": clean_special_skin(data.get("special_skin")),
 	}
 
 
@@ -143,7 +156,12 @@ static func _word(list: Array[String], value: Variant) -> String:
 ## Текстура по данным внешности (словарь из sanitize / PlayerProfile.to_dict)
 static func build_from(data: Dictionary) -> Texture2D:
 	var clean := sanitize(data)
-	return build(clean.hoodie, clean.hair_style, clean.hair_color, clean.accessory)
+	return build(clean.hoodie, clean.hair_style, clean.hair_color, clean.accessory, clean.special_skin)
+
+
+## Id особого скина или "" (обычная внешность), если такого нет.
+static func clean_special_skin(value: Variant) -> String:
+	return str(value) if value is String and SPECIAL_SKINS.has(value) else ""
 
 
 static func clean_accessory(value: Variant) -> String:

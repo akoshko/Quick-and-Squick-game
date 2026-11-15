@@ -10,6 +10,9 @@ var _by_player: Dictionary = {}  # player_id -> record Dictionary
 var _by_token: Dictionary = {}   # token -> player_id
 var _achievements_by_token: Dictionary = {}
 var _banned: Dictionary = {}     # token -> {player_id, number, name, at}
+var _special_skins: Dictionary = {}  # token -> id из CharacterLook.SPECIAL_SKINS
+## Файл особых скинов (переживают перезапуск сервера); "" — только в памяти.
+var special_skins_path := ""
 var _next_number := 1
 
 
@@ -37,7 +40,7 @@ func admit(token: String, role: String, now: float, profile: Variant = {}) -> Di
 		rec.held_since = 0.0
 		rec.reconnects += 1
 		if profile is Dictionary and not (profile as Dictionary).is_empty():
-			rec.profile = clean_profile(profile, rec.number, achievements_of(token))
+			rec.profile = _profile_for(token, profile, rec.number)
 		res.ok = true
 		res.player_id = rec.player_id
 		res.number = rec.number
@@ -48,7 +51,7 @@ func admit(token: String, role: String, now: float, profile: Variant = {}) -> Di
 	_by_player[pid] = {
 		"player_id": pid, "number": n, "state": "connected", "joined_at": now,
 		"reconnects": 0, "peer_id": 0, "token": token, "held_since": 0.0,
-		"profile": clean_profile(profile, n, achievements_of(token)), "tutorial_step": 0,
+		"profile": _profile_for(token, profile, n), "tutorial_step": 0,
 	}
 	_by_token[token] = pid
 	res.ok = true
@@ -168,6 +171,80 @@ func award_achievement(token: String, id: StringName) -> bool:
 	return true
 
 
+## Забрать все ачивки игрока с этим токеном; снятые награды заменяются начальными.
+## Возвращает player_id его персонажа ("" — сейчас в игре его нет).
+func reset_achievements(token: String) -> String:
+	_achievements_by_token.erase(token)
+	var player_id: String = _by_token.get(token, "")
+	if player_id != "":
+		var rec: Dictionary = _by_player[player_id]
+		if not _can_equip(rec.profile.accessory, {}):
+			rec.profile.accessory = CharacterLook.STARTER_ACCESSORY
+		if not _can_equip(rec.profile.nickname_color, {}):
+			rec.profile.nickname_color = CharacterLook.DEFAULT_NICKNAME_COLOR
+	return player_id
+
+
+## Токены всех, у кого есть ачивки или персонаж в игре (для сброса ачивок всем).
+func achievement_tokens() -> PackedStringArray:
+	var tokens := PackedStringArray(_achievements_by_token.keys())
+	for token: String in _by_token:
+		if not token in tokens:
+			tokens.append(token)
+	return tokens
+
+
+## Особый скин сессии с этим токеном ("" — обычная внешность). Возвращает false для неверного
+## токена или скина; иначе player_id персонажа с этим токеном ("" — его сейчас нет) в res.
+func set_special_skin(token: String, skin: String) -> Dictionary:
+	if not _valid_token(token) or (skin != "" and not CharacterLook.SPECIAL_SKINS.has(skin)):
+		return {"ok": false, "player_id": ""}
+	if skin == "":
+		_special_skins.erase(token)
+	else:
+		_special_skins[token] = skin
+	save_special_skins()
+	var player_id: String = _by_token.get(token, "")
+	if player_id != "":
+		_by_player[player_id].profile.special_skin = skin
+	return {"ok": true, "player_id": player_id}
+
+
+func special_skin_of(token: String) -> String:
+	return _special_skins.get(token, "")
+
+
+## Выданные особые скины: [{token, skin, player_id}] (player_id "" — сессия сейчас не в игре).
+func special_skins() -> Array[Dictionary]:
+	var out: Array[Dictionary] = []
+	for token: String in _special_skins:
+		out.append({"token": token, "skin": _special_skins[token], "player_id": _by_token.get(token, "")})
+	return out
+
+
+func load_special_skins() -> void:
+	if special_skins_path == "" or not FileAccess.file_exists(special_skins_path):
+		return
+	var data: Variant = JSON.parse_string(FileAccess.get_file_as_string(special_skins_path))
+	if not data is Dictionary:
+		push_error("NET: bad special skins file %s" % special_skins_path)
+		return
+	for token: Variant in data:
+		var skin := CharacterLook.clean_special_skin(data[token])
+		if token is String and _valid_token(token) and skin != "":
+			_special_skins[token] = skin
+
+
+func save_special_skins() -> void:
+	if special_skins_path == "":
+		return
+	var file := FileAccess.open(special_skins_path, FileAccess.WRITE)
+	if file == null:
+		push_error("NET: cannot save special skins to %s: %s" % [special_skins_path, error_string(FileAccess.get_open_error())])
+		return
+	file.store_string(JSON.stringify(_special_skins, "	"))
+
+
 func tutorial_step_of(player_id: String) -> int:
 	return _by_player[player_id].tutorial_step if _by_player.has(player_id) else 0
 
@@ -239,10 +316,19 @@ static func _can_equip(id: String, achievements: Dictionary) -> bool:
 	return not option.is_empty() and (achievement == &"" or achievements.has(achievement))
 
 
-## Идентификатор скина для админки: «худи/причёска/цвет волос».
+func _profile_for(token: String, profile: Variant, number: int) -> Dictionary:
+	var clean := clean_profile(profile, number, achievements_of(token))
+	clean.special_skin = special_skin_of(token)
+	return clean
+
+
+## Идентификатор скина для админки: «худи/причёска/цвет волос» или «★ Имя» для особого скина.
 static func skin_id(profile: Dictionary) -> String:
 	if profile.is_empty():
 		return ""
+	var special := CharacterLook.clean_special_skin(profile.get("special_skin"))
+	if special != "":
+		return "★ " + CharacterLook.SPECIAL_SKINS[special].title
 	return "%s/%s/%s" % [profile.get("hoodie", ""), profile.get("hair_style", ""), profile.get("hair_color", "")]
 
 

@@ -7,6 +7,8 @@ enum GameState { PLAYING, PAUSED }
 signal state_changed(new_state: GameState)
 signal achievement_unlocked(id: StringName)
 signal reward_achievements_synced
+## Все ачивки сброшены (админка): журнал перерисовывает карточки, профиль снимает награды.
+signal achievements_reset
 
 const MUSIC_VOLUME_DB := -12.0   ## музыка тише звуков, чтобы их было слышно
 
@@ -36,6 +38,13 @@ func sync_reward_achievements(earned: Array) -> void:
 				_unlocked_achievements.erase(id)
 	for id: StringName in earned:
 		unlock_achievement(id)
+	reward_achievements_synced.emit()
+
+
+## Забыть все полученные ачивки (сервер присылает по команде админки «Сбросить ачивки»).
+func reset_achievements() -> void:
+	_unlocked_achievements.clear()
+	achievements_reset.emit()
 	reward_achievements_synced.emit()
 
 

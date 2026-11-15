@@ -10,7 +10,7 @@ const ACTOR_NOBODY := -1
 ## Каждый вызов forward_personal должен быть в этом списке, иначе клиент его молча проигнорирует.
 const PERSONAL_CALLS := {
 	&"Quests": [&"complete", &"remove_quest", &"reset", &"net_add_quest"],
-	&"GameManager": [&"unlock_achievement", &"sync_reward_achievements"],
+	&"GameManager": [&"unlock_achievement", &"sync_reward_achievements", &"reset_achievements"],
 }
 
 signal link_changed(state: int, reason: String)
@@ -221,6 +221,23 @@ func award_player_achievement(token: String, id: StringName) -> void:
 	var peer := server.registry.peer_for_token(token)
 	if world_ready_peers.has(peer) and peer in multiplayer.get_peers():
 		personal_call.rpc_id(peer, &"GameManager", &"unlock_achievement", [id])
+
+
+## Сервер: забрать все ачивки сессии с этим токеном (админка). Подключённый игрок сразу видит
+## сброс у себя, его персонаж снимает награды. Возвращает player_id ("" — сейчас не в игре).
+func reset_player_achievements(token: String) -> String:
+	if server == null:
+		return ""
+	var player_id := server.registry.reset_achievements(token)
+	if player_id == "":
+		return ""
+	var peer := server.registry.peer_for_player(player_id)
+	if world_ready_peers.has(peer) and peer in multiplayer.get_peers():
+		personal_call.rpc_id(peer, &"GameManager", &"reset_achievements", [])
+	var net_world := world()
+	if net_world != null:
+		net_world.refresh_player_profile(player_id)
+	return player_id
 
 
 func record_tutorial_step(id: String) -> void:

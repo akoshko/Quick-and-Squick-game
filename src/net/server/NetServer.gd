@@ -14,6 +14,8 @@ const KEEPALIVE_TIMEOUT := 15.0
 const HELLO_TIMEOUT := 10.0
 const RTT_PING_SECONDS := 2.0
 const REGISTER_TIMEOUT := 10.0
+## Особые скины по токенам (админка) переживают перезапуск сервера.
+const SPECIAL_SKINS_PATH := "user://special_skins.json"
 
 var registry := PlayerRegistry.new()
 var started_at: float = 0.0
@@ -37,6 +39,8 @@ var _rtt_acc := 0.0
 
 func _ready() -> void:
 	started_at = Time.get_unix_time_from_system()
+	registry.special_skins_path = SPECIAL_SKINS_PATH
+	registry.load_special_skins()
 	_transport = _net.config.transport
 	add_child(_sig)
 	_sig.opened.connect(func(conn_id: int) -> void: _conns[conn_id] = _new_conn())
@@ -108,6 +112,20 @@ func kick(player_id: String) -> bool:
 	_cand_types.erase(player_id)
 	print("NET: removed %s (kicked)" % player_id)
 	player_removed.emit(player_id)
+	return true
+
+
+## Особый скин сессии по токену ("" — снять). Персонаж в игре переодевается сразу.
+func set_special_skin(token: String, skin: String) -> bool:
+	var res := registry.set_special_skin(token, skin)
+	if not res.ok:
+		return false
+	print("NET: special skin %s for %s" % [skin if skin != "" else "removed", res.player_id if res.player_id != "" else "offline session"])
+	var loop := Engine.get_main_loop() as SceneTree
+	var net: Node = loop.root.get_node_or_null("Net") if loop != null else null
+	var net_world: Node = net.world() if net != null else null
+	if res.player_id != "" and net_world != null:
+		net_world.refresh_player_profile(res.player_id)
 	return true
 
 

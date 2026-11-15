@@ -42,6 +42,7 @@ func _ready() -> void:
 	process_mode = Node.PROCESS_MODE_ALWAYS
 	_build()
 	GameManager.achievement_unlocked.connect(_on_achievement_unlocked)
+	GameManager.achievements_reset.connect(_on_achievements_reset)
 	PlayerProfile.changed.connect(_refresh_profile)
 	PlayerProfile.accessory_changed.connect(_refresh_profile)
 	_boss_bar = get_tree().get_first_node_in_group("boss_bar") as BossBar
@@ -307,6 +308,12 @@ func _set_card_content(card: PanelContainer, icon: Texture2D, title: String,
 	labels.get_node("Title").add_theme_color_override("font_color", title_color)
 	labels.get_node("Description").text = description
 	labels.get_node("Description").add_theme_color_override("font_color", description_color)
+
+
+func _on_achievements_reset() -> void:
+	for id: StringName in _cards_by_id:
+		_refresh_achievement(id)
+	_refresh_profile()
 
 
 func _on_achievement_unlocked(id: StringName) -> void:

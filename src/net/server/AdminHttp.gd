@@ -84,6 +84,7 @@ func route(method: String, path: String, headers: Dictionary) -> Dictionary:
 	var key := ""
 	var allowed := "POST"
 	var player_id := ""
+	var skin := ""
 	if segs.size() == 1 and segs[0] == "stats":
 		key = "stats"
 		allowed = "GET"
@@ -94,7 +95,7 @@ func route(method: String, path: String, headers: Dictionary) -> Dictionary:
 	elif segs.size() == 2 and segs[0] == "boss" and segs[1] == "restart":
 		key = "boss_restart"
 	elif segs.size() == 2 and segs[0] == "achievements" and segs[1] == "reset":
-		key = "not_impl"
+		key = "achievements_reset_all"
 	elif segs.size() == 3 and segs[0] == "players" and segs[2] == "kick":
 		key = "kick"
 		player_id = segs[1]
@@ -102,7 +103,18 @@ func route(method: String, path: String, headers: Dictionary) -> Dictionary:
 		key = "unban"
 		player_id = segs[1]
 	elif segs.size() == 4 and segs[0] == "players" and segs[2] == "achievements" and segs[3] == "reset":
-		key = "not_impl"
+		key = "achievements_reset"
+		player_id = segs[1]
+	elif segs.size() == 4 and segs[0] == "players" and segs[2] == "skin":
+		# players/<player_id>/skin/<id или none>: то же по токену этого игрока
+		key = "player_skin"
+		player_id = segs[1]
+		skin = "" if segs[3] == "none" else segs[3]
+	elif segs.size() == 3 and segs[0] == "skins":
+		# skins/<токен сессии>/<id из CharacterLook.SPECIAL_SKINS или none>
+		key = "special_skin"
+		player_id = segs[1]
+		skin = "" if segs[2] == "none" else segs[2]
 	else:
 		return _resp(404, {"error": "not found"})
 	if method != allowed:
@@ -128,6 +140,31 @@ func route(method: String, path: String, headers: Dictionary) -> Dictionary:
 			if director == null:
 				return _resp(503, {"error": "boss director not ready"})
 			director.restart_boss()
+			return _resp(200, {"ok": true})
+		"achievements_reset_all":
+			var net := _net()
+			if server == null or net == null:
+				return _resp(503, {"error": "server not ready"})
+			for tok in server.registry.achievement_tokens():
+				net.reset_player_achievements(tok)
+			return _resp(200, {"ok": true})
+		"achievements_reset":
+			var net := _net()
+			var tok := server.registry.token_for_player(player_id) if server != null else ""
+			if net == null or tok == "":
+				return _resp(404, {"error": "no such player"})
+			net.reset_player_achievements(tok)
+			return _resp(200, {"ok": true})
+		"player_skin":
+			var tok := server.registry.token_for_player(player_id) if server != null else ""
+			if tok == "":
+				return _resp(404, {"error": "no such player"})
+			if not server.set_special_skin(tok, skin):
+				return _resp(400, {"error": "bad skin"})
+			return _resp(200, {"ok": true})
+		"special_skin":
+			if server == null or not server.set_special_skin(player_id, skin):
+				return _resp(400, {"error": "bad token or skin"})
 			return _resp(200, {"ok": true})
 		"kick":
 			if server == null or not server.kick(player_id):
@@ -157,6 +194,11 @@ static func _same(a: String, b: String) -> bool:
 func _scene() -> Node:
 	var tree := get_tree()
 	return tree.current_scene if tree != null else null
+
+
+func _net() -> Node:
+	var loop := Engine.get_main_loop() as SceneTree
+	return loop.root.get_node_or_null("Net") if loop != null else null
 
 
 func _net_world() -> Node:
@@ -192,6 +234,9 @@ func _stats() -> Dictionary:
 				"player_id": rec.player_id,
 				"name": rec.name,
 				"skin": rec.skin,
+				"special_skin": str(rec.profile.get("special_skin", "")),
+				# токен сессии (qs_token): по нему создателям выдаются особые скины
+				"token": server.registry.token_for_player(rec.player_id),
 				"number": rec.number,
 				"state": rec.state,
 				"rtt_ms": server.rtt_ms(rec.peer_id) if rec.state == "connected" else -1,
@@ -214,7 +259,16 @@ func _stats() -> Dictionary:
 		"coturn_allocations": _coturn,
 		"list": list,
 		"banned": banned,
+		"special_skins": server.registry.special_skins() if server != null else [],
+		"special_skin_catalog": _special_skin_catalog(),
 	}
+
+
+static func _special_skin_catalog() -> Array:
+	var out := []
+	for id: String in CharacterLook.SPECIAL_SKINS:
+		out.append({"id": id, "title": CharacterLook.SPECIAL_SKINS[id].title})
+	return out
 
 
 # --- coturn metrics (polled in the background, at most every 5 s) ---
