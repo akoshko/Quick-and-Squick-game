@@ -20,9 +20,13 @@ Follow the surrounding file’s formatting. GDScript functions and variables use
 
 GohuFont is configured through `assets/GohuTheme.tres`. Keep MSDF enabled for small world-space text enlarged by the camera, and pass GohuFont explicitly to `draw_string` calls. Quest checkmark sizes are configured separately for the active quest panel and the “All Quests” window; after changing either size, check both panels in portrait orientation.
 
+Use `UiSpacing.step(viewport_size)` for screen-space UI padding and gaps. Use whole multiples of the step. In the 390 × 844 portrait viewport, one step is 4 px. Use two steps for tab insets and gaps between cards or inventory slots, three for journal window padding, and four for HUD margins from the viewport edge.
+
 ## Multiplayer
 
 Run shared world simulation only where `Net.runs_world()` is true. Clients and the projector apply replicated state through `WorldSync`. Keep synchronized node paths stable across server and client scenes, and limit `apply_net_state()` to updating the local representation. Route personal quest and achievement updates to the intended player.
+
+The server determines reward recipients from authoritative gameplay actions, validates accessory entitlement on join and equip, and restores earned rewards on reconnect. When changing boss rewards, test a player who dealt damage and a spectator separately. Check that a participant who reconnects after the fight can equip the reward.
 
 ## Testing
 
@@ -39,6 +43,10 @@ When changing default NPC dialogue, check scene overrides and verify dialogue th
 When changing where an NPC appears or its draw order, run the scene in a Godot window with the player nearby. Visually verify that the NPC appears in the intended spot and that the sprites overlap in the intended order.
 
 When changing the HUD or achievement notifications, use portrait mode to check that notifications do not cover the current quest, the boss health bar, journal controls, or the emote button. Trigger two notifications in quick succession and verify that both appear in order, including when the journal is opened and closed between them. For changes to the shared HUD, also check the projector view (`?view=screen`) for the full map, join QR code, and active shared indicators.
+
+When changing the notification queue, accumulate more notifications than fit in the portrait window while the journal is open. After closing it, verify that the notifications appear in order and each dismissal timer starts when its notification becomes visible.
+
+When changing the accessory inventory, check both portrait and landscape. Slots stay square, fill rows from left to right, and wrap only when the next slot would exceed the available width. Verify that removing a worn item preserves the selected nickname color.
 
 When changing shared world state, verify with two clients that both see the same world. Reconnect one client and check that it receives current state without replaying completed events. When changing the quest journal, check that opening it in multiplayer blocks local character input while the session continues.
 
